@@ -98,7 +98,7 @@ function proxy( $method, $path, $body = null ) {
 		// Unique per call: tickets are live data, so the outbound request URL must
 		// never be cacheable by an intermediary (proxy/edge/HTTP-API cache) that
 		// would otherwise pin a stale copy from before the latest reply.
-		$url = add_query_arg(
+		$url             = add_query_arg(
 			array(
 				'site_token' => rawurlencode( $token ),
 				'_cb'        => str_replace( '.', '', (string) microtime( true ) ),
