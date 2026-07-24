@@ -126,6 +126,12 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.4 =
+* New: Support — message the DineKit team straight from your dashboard. No account or key needed: type your name, email and question; replies land back in the same screen (and your inbox). Track all your requests, reply, and mark them solved without leaving WordPress. Optional — the wordpress.org forum works too, and nothing is ever sent in the background.
+* New: a "Common fixes" panel on the Support screen answers the most frequent questions (QR 404s, missing emails, Stripe test mode…) in under a minute, before you even need to ask.
+* New: after your first accepted order or confirmed booking, DineKit asks (once, politely) whether you'd leave a review — fully dismissible, and "no thanks" means never again.
+* Housekeeping: the review-request schedule is now cleaned up when the plugin is deactivated or uninstalled.
+
 = 1.2.3 =
 * Floor plan: deleting a zone now asks first and lets you move its tables to another zone (or remove them) — and if any of those tables have upcoming bookings, you can reassign each one to a free table before it goes.
 * Nothing is lost: deleted zones and tables now live in a new "History" tab on the floor plan, restorable with one click.
@@ -140,6 +146,12 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 * Online ordering follows your opening hours: orders are only taken while you're open, with an optional "last orders" cut-off before closing time.
 * Table bookings read your opening hours directly, so your service times live in one place.
 * Polish: tidier fields inside pop-out panels, your cursor stays put while typing, and assorted small performance improvements.
+
+= 1.2.1 =
+* Release-pipeline fix only — no plugin changes. Superseded by 1.2.2, which carries this line's content.
+
+= 1.2.0 =
+* Release-pipeline fix only — no plugin changes. Superseded by 1.2.2, which carries this line's content.
 
 = 1.1.0 =
 * Commission-free online ordering — takeaway, collection and delivery, with a diner-facing menu, dish customizations, and printable kitchen/bar tickets.
