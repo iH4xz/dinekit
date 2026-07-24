@@ -115,6 +115,7 @@ register_activation_hook(
 register_deactivation_hook(
 	__FILE__,
 	function () {
+		wp_clear_scheduled_hook( 'dinekit_review_cron' );
 		flush_rewrite_rules();
 	}
 );
