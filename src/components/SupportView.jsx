@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
 	Box,
 	Stack,
@@ -83,6 +83,28 @@ const TYPES = [
 	{ key: 'feature', label: 'Suggest an idea' },
 ];
 
+// How many of the most recent messages to render before "Show earlier messages".
+// Keeps long threads light and lands you on the latest reply.
+const INITIAL_MESSAGES = 6;
+
+// The hub stores emoji as numeric HTML entities so 4-byte characters survive a
+// utf8 database; decode them back for display and strip any other markup. Result
+// is rendered as a plain text child (React-escaped), so this can't inject HTML.
+function renderMessage( raw ) {
+	return String( raw || '' )
+		.replace( /<[^>]*>/g, '' )
+		.replace( /&#x([0-9a-fA-F]+);/g, ( _, hex ) => codePoint( parseInt( hex, 16 ) ) )
+		.replace( /&#(\d+);/g, ( _, dec ) => codePoint( parseInt( dec, 10 ) ) );
+}
+
+function codePoint( cp ) {
+	try {
+		return String.fromCodePoint( cp );
+	} catch ( e ) {
+		return '';
+	}
+}
+
 export default function SupportView( { openTicketId } ) {
 	const [ meta, setMeta ] = useState( null );
 	const [ tickets, setTickets ] = useState( [] );
@@ -100,6 +122,18 @@ export default function SupportView( { openTicketId } ) {
 	const [ reply, setReply ] = useState( '' );
 	const [ fixesOpen, setFixesOpen ] = useState( false );
 	const [ openFix, setOpenFix ] = useState( -1 );
+	const [ visibleCount, setVisibleCount ] = useState( INITIAL_MESSAGES );
+	const scrollRef = useRef( null );
+
+	// Keep the newest message in view: scroll to the bottom when a ticket opens and
+	// whenever a message is added — but not when "Show earlier" reveals older ones
+	// (that changes visibleCount, not the message count).
+	const messageCount = activeTicket && activeTicket.messages ? activeTicket.messages.length : 0;
+	useEffect( () => {
+		if ( view === 'single' && scrollRef.current ) {
+			scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+		}
+	}, [ view, activeTicket && activeTicket.id, messageCount ] );
 
 	const load = async () => {
 		setLoading( true );
@@ -134,6 +168,7 @@ export default function SupportView( { openTicketId } ) {
 		setView( 'single' );
 		setTicketLoading( true );
 		setError( null );
+		setVisibleCount( INITIAL_MESSAGES );
 		try {
 			const data = await api.getSupportTicket( id );
 			setActiveTicket( data.ticket );
@@ -432,33 +467,54 @@ export default function SupportView( { openTicketId } ) {
 
 					{ ! ticketLoading && activeTicket && (
 						<>
-							<Stack spacing={ 2 } sx={ { p: 2.5, maxHeight: 460, overflowY: 'auto' } }>
-								{ ( activeTicket.messages || [] ).map( ( msg, idx ) => {
-									const mine = msg.sender_type === 'customer';
-									return (
-										<Box key={ idx } sx={ { display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-end' : 'flex-start' } }>
-											<Typography sx={ { fontSize: 11.5, fontWeight: 650, color: tokens.muted2, mb: 0.5 } }>
-												{ mine ? 'You' : 'DineKit team' } · { new Date( ( msg.created_at || '' ).replace( ' ', 'T' ) ).toLocaleString() }
-											</Typography>
-											<Box
-												sx={ {
-													maxWidth: '80%',
-													px: 2,
-													py: 1.25,
-													borderRadius: '10px',
-													fontSize: 13.5,
-													lineHeight: 1.6,
-													whiteSpace: 'pre-wrap',
-													bgcolor: mine ? tokens.accent : tokens.soft,
-													color: mine ? '#fff' : tokens.ink,
-												} }
-											>
-												{ String( msg.message || '' ).replace( /<[^>]*>/g, '' ) }
-											</Box>
-										</Box>
-									);
-								} ) }
-							</Stack>
+							{ ( () => {
+								const all = activeTicket.messages || [];
+								const hidden = Math.max( 0, all.length - visibleCount );
+								const shown = hidden > 0 ? all.slice( hidden ) : all;
+								return (
+									<Box ref={ scrollRef } sx={ { maxHeight: 460, overflowY: 'auto' } }>
+										<Stack spacing={ 2 } sx={ { p: 2.5 } }>
+											{ hidden > 0 && (
+												<Box sx={ { textAlign: 'center' } }>
+													<Button
+														size="small"
+														variant="text"
+														onClick={ () => setVisibleCount( ( n ) => n + 20 ) }
+														sx={ { color: tokens.muted } }
+													>
+														Show earlier messages ({ hidden })
+													</Button>
+												</Box>
+											) }
+											{ shown.map( ( msg, idx ) => {
+												const mine = msg.sender_type === 'customer';
+												return (
+													<Box key={ idx } sx={ { display: 'flex', flexDirection: 'column', alignItems: mine ? 'flex-end' : 'flex-start' } }>
+														<Typography sx={ { fontSize: 11.5, fontWeight: 650, color: tokens.muted2, mb: 0.5 } }>
+															{ mine ? 'You' : 'DineKit team' } · { new Date( ( msg.created_at || '' ).replace( ' ', 'T' ) ).toLocaleString() }
+														</Typography>
+														<Box
+															sx={ {
+																maxWidth: '80%',
+																px: 2,
+																py: 1.25,
+																borderRadius: '10px',
+																fontSize: 13.5,
+																lineHeight: 1.6,
+																whiteSpace: 'pre-wrap',
+																bgcolor: mine ? tokens.accent : tokens.soft,
+																color: mine ? '#fff' : tokens.ink,
+															} }
+														>
+															{ renderMessage( msg.message ) }
+														</Box>
+													</Box>
+												);
+											} ) }
+										</Stack>
+									</Box>
+								);
+							} )() }
 
 							{ ! isClosed ? (
 								<Box component="form" onSubmit={ sendReply } sx={ { p: 2, borderTop: `1px solid ${ tokens.border }` } }>

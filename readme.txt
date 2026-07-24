@@ -126,6 +126,11 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.6 =
+* Support conversations now open at the newest message, so you don't have to scroll to see the latest reply.
+* Long support threads stay light — only the most recent messages load, with a "Show earlier messages" button for the rest.
+* Emoji in support messages now display correctly.
+
 = 1.2.5 =
 * Fix: replies from the support team now appear in your Support screen straight away. On some hosts a cache could hold an older copy of the conversation, so a reply looked like it hadn't arrived — support replies are now always fetched fresh.
 
