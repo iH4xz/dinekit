@@ -4,7 +4,7 @@
  *   node bump.js 1.1.0            # sets version to 1.1.0, commits, tags 1.1.0
  *   node bump.js 1.1.0 --no-git   # just rewrite files (no commit/tag)
  *
- * Pushing the tag (git push origin HEAD --tags) triggers .github/workflows/deploy.yml,
+ * Pushing the tag (git push origin HEAD refs/tags/<X.Y.Z>) triggers .github/workflows/deploy.yml,
  * which builds and releases to wordpress.org via SVN. Run from plugin/dinekit/.
  * (ESM — package.json has "type": "module".)
  */
@@ -64,4 +64,6 @@ cp.execSync( `git commit -m "chore(release): v${ version }"`, { stdio: 'inherit'
 cp.execSync( `git tag ${ version }`, { stdio: 'inherit' } );
 
 console.log( `\n🎉 Committed + tagged ${ version }.` );
-console.log( 'Push to release on wordpress.org:\n  git push origin HEAD --tags' );
+// NEVER suggest `--tags`: it pushes every local tag, and any old local-only tag
+// (like the once-unpushed 1.1.0) then fires a stale deploy run on the pipeline.
+console.log( `Push to release on wordpress.org:\n  git push origin HEAD refs/tags/${ version }` );
