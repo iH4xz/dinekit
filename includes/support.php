@@ -95,7 +95,17 @@ function proxy( $method, $path, $body = null ) {
 	);
 	if ( 'GET' === $method ) {
 		$token = (string) get_option( TOKEN_OPTION, '' );
-		$url   = add_query_arg( 'site_token', rawurlencode( $token ), $url );
+		// Unique per call: tickets are live data, so the outbound request URL must
+		// never be cacheable by an intermediary (proxy/edge/HTTP-API cache) that
+		// would otherwise pin a stale copy from before the latest reply.
+		$url = add_query_arg(
+			array(
+				'site_token' => rawurlencode( $token ),
+				'_cb'        => str_replace( '.', '', (string) microtime( true ) ),
+			),
+			$url
+		);
+		$args['headers'] = array( 'Cache-Control' => 'no-cache' );
 	} elseif ( is_array( $body ) ) {
 		$args['body'] = $body;
 	}
@@ -218,6 +228,7 @@ function rest_meta() {
  * @return \WP_REST_Response|\WP_Error
  */
 function rest_list() {
+	nocache_headers(); // Live per-site data — keep any cache layer on this site off it.
 	if ( '' === (string) get_option( TOKEN_OPTION, '' ) ) {
 		return rest_ensure_response(
 			array(
@@ -324,6 +335,7 @@ function rest_create( \WP_REST_Request $request ) {
  * @return \WP_REST_Response|\WP_Error
  */
 function rest_single( \WP_REST_Request $request ) {
+	nocache_headers(); // Live per-site data — keep any cache layer on this site off it.
 	$data = proxy( 'GET', 'tickets/' . (int) $request['id'] );
 	if ( is_wp_error( $data ) ) {
 		return $data;

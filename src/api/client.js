@@ -210,11 +210,13 @@ export const api = {
 	getReviewAsk: () => request( 'GET', 'review-ask' ),
 	actReviewAsk: ( action ) => request( 'POST', 'review-ask', { action } ),
 
-	// Direct support (proxied server-side to the Web Level Up hub).
-	getSupportMeta: () => request( 'GET', 'support/meta' ),
-	getSupportTickets: () => request( 'GET', 'support/tickets' ),
+	// Direct support (proxied server-side to the Web Level Up hub). Support reads
+	// are live ticket data, so every GET carries a unique cache-buster — no browser
+	// or site cache should ever pin a stale copy from before the latest reply.
+	getSupportMeta: () => request( 'GET', `support/meta?_cb=${ Date.now() }` ),
+	getSupportTickets: () => request( 'GET', `support/tickets?_cb=${ Date.now() }` ),
 	createSupportTicket: ( data ) => request( 'POST', 'support/tickets', data ),
-	getSupportTicket: ( id ) => request( 'GET', `support/tickets/${ id }` ),
+	getSupportTicket: ( id ) => request( 'GET', `support/tickets/${ id }?_cb=${ Date.now() }` ),
 	replySupportTicket: ( id, message ) => request( 'POST', `support/tickets/${ id }/reply`, { message } ),
 	closeSupportTicket: ( id ) => request( 'POST', `support/tickets/${ id }/close` ),
 };

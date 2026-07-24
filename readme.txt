@@ -126,6 +126,9 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.5 =
+* Fix: replies from the support team now appear in your Support screen straight away. On some hosts a cache could hold an older copy of the conversation, so a reply looked like it hadn't arrived — support replies are now always fetched fresh.
+
 = 1.2.4 =
 * New: Support — message the DineKit team straight from your dashboard. No account or key needed: type your name, email and question; replies land back in the same screen (and your inbox). Track all your requests, reply, and mark them solved without leaving WordPress. Optional — the wordpress.org forum works too, and nothing is ever sent in the background.
 * New: a "Common fixes" panel on the Support screen answers the most frequent questions (QR 404s, missing emails, Stripe test mode…) in under a minute, before you even need to ask.
