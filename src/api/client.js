@@ -205,4 +205,16 @@ export const api = {
 		} );
 		return res.ok ? res.json() : [];
 	},
+
+	// wordpress.org review prompt.
+	getReviewAsk: () => request( 'GET', 'review-ask' ),
+	actReviewAsk: ( action ) => request( 'POST', 'review-ask', { action } ),
+
+	// Direct support (proxied server-side to the Web Level Up hub).
+	getSupportMeta: () => request( 'GET', 'support/meta' ),
+	getSupportTickets: () => request( 'GET', 'support/tickets' ),
+	createSupportTicket: ( data ) => request( 'POST', 'support/tickets', data ),
+	getSupportTicket: ( id ) => request( 'GET', `support/tickets/${ id }` ),
+	replySupportTicket: ( id, message ) => request( 'POST', `support/tickets/${ id }/reply`, { message } ),
+	closeSupportTicket: ( id ) => request( 'POST', `support/tickets/${ id }/close` ),
 };

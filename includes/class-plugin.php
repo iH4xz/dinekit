@@ -117,6 +117,12 @@ final class Plugin {
 		if ( $this->load( 'staff.php' ) ) {
 			Staff\init();
 		}
+		if ( $this->load( 'support.php' ) ) {
+			Support\init();
+		}
+		if ( $this->load( 'plugin-review.php' ) ) {
+			PluginReview\init();
+		}
 		if ( is_admin() ) {
 			if ( $this->load( 'admin/admin.php' ) ) {
 				Admin\init();

@@ -43,6 +43,8 @@ import AccessView from './components/AccessView';
 import AuditView from './components/AuditView';
 import LockIcon from '@mui/icons-material/Lock';
 import HistoryIcon from '@mui/icons-material/History';
+import SupportAgentIcon from '@mui/icons-material/SupportAgent';
+import SupportView from './components/SupportView';
 import Wizard from './components/Wizard';
 
 // Grouped so the sidebar reads like a product, not a feature dump.
@@ -69,6 +71,7 @@ const NAV = [
 	{ key: 'access', label: 'Access Control', icon: <LockIcon fontSize="small" /> },
 	{ key: 'activity', label: 'Activity', icon: <HistoryIcon fontSize="small" /> },
 	{ key: 'settings', label: 'Settings', icon: <SettingsIcon fontSize="small" /> },
+	{ key: 'support', label: 'Support', icon: <SupportAgentIcon fontSize="small" /> },
 ];
 
 // Feature gating by business type.
@@ -82,6 +85,7 @@ const NAV_PERM = {
 	orders: 'orders', pos: 'orders', events: 'events', reviews: 'settings', staff: 'staff',
 	builder: 'menu', design: 'menu', qr: 'menu', hours: 'menu',
 	integrations: 'settings', emails: 'settings', access: 'owner', activity: 'staff', settings: 'settings',
+	support: 'access',
 };
 
 // Full admins/owners see everything; if caps are somehow absent, fail open.
@@ -196,6 +200,7 @@ export default function App() {
 							{ activeView === 'access' && <AccessView /> }
 							{ activeView === 'activity' && <AuditView /> }
 							{ activeView === 'settings' && <SettingsView /> }
+							{ activeView === 'support' && <SupportView openTicketId={ itemId } /> }
 						</Box>
 					) }
 				</Box>

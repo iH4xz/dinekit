@@ -68,6 +68,14 @@ If you do not enable payments, DineKit makes no external requests. Stripe is a t
 * Terms: https://stripe.com/legal
 * Privacy: https://stripe.com/privacy
 
+DineKit's optional **direct support** feature (DineKit → Support) sends your support request to Web Level Up, the makers of DineKit, at https://weblevelup.co.uk. Nothing is sent automatically or in the background — the service is contacted only when a logged-in user opens the Support screen or presses send:
+
+* When you send a request or reply, DineKit transmits the name, email address, subject and message you typed, plus your site address (used to link replies back to your dashboard and keep your ticket history together).
+* If — and only if — you tick the "include my site details" box, your WordPress, PHP and DineKit version numbers are attached to help with debugging.
+* Opening the Support screen fetches your own site's ticket history from the same service.
+
+If you prefer not to use direct support, the Support screen also links to the plugin's free forum at https://wordpress.org/support/plugin/dinekit/ — using the forum sends nothing to Web Level Up. Web Level Up privacy policy: https://weblevelup.co.uk/privacy-policy/
+
 == Development ==
 
 DineKit is open source (GPLv2+). The complete human-readable source — including the React admin application and the build tooling used to generate the bundled `dist/main.js` — is publicly available and maintained at:

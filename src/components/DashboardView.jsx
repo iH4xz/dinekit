@@ -12,6 +12,7 @@ import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import PlaylistAddCheckIcon from '@mui/icons-material/PlaylistAddCheck';
+import StarRoundedIcon from '@mui/icons-material/StarRounded';
 import { tokens } from '../theme';
 import { api } from '../api/client';
 import { prettyDate, statusMeta } from '../lib/bookings';
@@ -40,10 +41,21 @@ export default function DashboardView( { navigate } ) {
 	const [ d, setD ] = useState( null );
 	const [ loading, setLoading ] = useState( true );
 	const [ busy, setBusy ] = useState( '' );
+	const [ review, setReview ] = useState( null );
 
 	useEffect( () => {
 		api.getDashboard().then( setD ).finally( () => setLoading( false ) );
+		api.getReviewAsk().then( setReview ).catch( () => {} );
 	}, [] );
+
+	// The banner disappears instantly on any choice; the server remembers it.
+	const reviewAct = ( action ) => {
+		if ( 'done' === action && review ) {
+			window.open( review.reviewUrl, '_blank', 'noopener' );
+		}
+		setReview( null );
+		api.actReviewAsk( action ).catch( () => {} );
+	};
 
 	// Act on a getting-started step: create-and-open a page, or jump to a view.
 	const onStep = async ( c ) => {
@@ -133,6 +145,36 @@ export default function DashboardView( { navigate } ) {
 					)
 				}
 			/>
+
+			{ /* One-time review ask — earned by their first real win, always dismissible. */ }
+			{ review && review.show && (
+				<Card sx={ { mb: 3, borderColor: tokens.accent, bgcolor: tokens.accentSoft } }>
+					<Stack direction={ { xs: 'column', sm: 'row' } } spacing={ 2 } alignItems={ { sm: 'center' } }>
+						<StarRoundedIcon sx={ { fontSize: 34, color: tokens.accent } } />
+						<Box sx={ { flex: 1 } }>
+							<Typography sx={ { fontWeight: 700, fontSize: 15 } }>
+								{ review.milestone === 'order'
+									? 'Your first order is in — congratulations! 🎉'
+									: 'Your first booking is in the diary — congratulations! 🎉' }
+							</Typography>
+							<Typography sx={ { fontSize: 13, color: tokens.muted } }>
+								If DineKit is working for you, a quick review helps other independent restaurants find it — and genuinely makes our day.
+							</Typography>
+						</Box>
+						<Stack direction="row" spacing={ 1 } sx={ { flexShrink: 0 } }>
+							<Button variant="contained" size="small" startIcon={ <StarRoundedIcon /> } onClick={ () => reviewAct( 'done' ) }>
+								Leave a review
+							</Button>
+							<Button variant="text" size="small" onClick={ () => reviewAct( 'later' ) } sx={ { color: tokens.muted } }>
+								Maybe later
+							</Button>
+							<Button variant="text" size="small" onClick={ () => reviewAct( 'dismiss' ) } sx={ { color: tokens.muted2 } }>
+								No thanks
+							</Button>
+						</Stack>
+					</Stack>
+				</Card>
+			) }
 
 			{ /* KPI tiles */ }
 			<Stack direction="row" spacing={ 2 } flexWrap="wrap" useFlexGap sx={ { mb: 3 } }>

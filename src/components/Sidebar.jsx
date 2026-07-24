@@ -146,9 +146,7 @@ export default function Sidebar( { nav, view, onChange, collapsed, onToggleColla
 					{ ! collapsed && (
 						<Box
 							component="a"
-							href="https://weblevelup.co.uk"
-							target="_blank"
-							rel="noreferrer"
+							href="#/support"
 							sx={ {
 								display: 'flex',
 								alignItems: 'center',

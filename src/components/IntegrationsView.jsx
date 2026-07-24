@@ -27,7 +27,6 @@ import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
 
 const REPO = 'https://github.com/nikutx/dinekit';
-const SUPPORT_URL = 'https://weblevelup.co.uk/dinekit';
 
 // Decorative tints cycled across the coming-soon cards (categorical, not status).
 const SOON_TINTS = [
@@ -424,16 +423,13 @@ export default function IntegrationsView() {
 					<Box sx={ { flex: 1 } }>
 						<Typography sx={ { fontWeight: 800, fontSize: 16 } }>Need a hand?</Typography>
 						<Typography sx={ { fontSize: 13, color: tokens.muted2 } }>
-							Web Level Up — the team behind DineKit — can set it up for you or fix an issue fast.
-							£60 for a focused 15-minute diagnostic.
+							Message the DineKit team directly from your dashboard — free, no account needed.
+							Replies land right here and in your inbox.
 						</Typography>
 					</Box>
 					<Button
 						variant="contained"
-						endIcon={ <OpenInNewIcon sx={ { fontSize: 16 } } /> }
-						href={ SUPPORT_URL }
-						target="_blank"
-						rel="noopener"
+						href="#/support"
 						sx={ { bgcolor: tokens.accent, '&:hover': { bgcolor: tokens.accentDark }, flexShrink: 0 } }
 					>
 						Get support
@@ -442,8 +438,8 @@ export default function IntegrationsView() {
 			</Box>
 
 			<Typography sx={ { fontSize: 12, color: tokens.muted2, mt: 2, textAlign: 'center' } }>
-				DineKit never phones home. Keys stay on your site; support and voting open in your browser
-				only when you click.
+				DineKit never phones home. Keys stay on your site; support messages and votes leave your
+				site only when you press send.
 			</Typography>
 		</Page>
 	);
