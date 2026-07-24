@@ -23,19 +23,34 @@ DineKit turns WordPress into a complete, commission-free restaurant platform —
 
 **Online ordering**
 
-* **Takeaway, collection and delivery** ordering with a diner-facing menu, dish customizations (removable ingredients, choose-your-options with prices) and printable **kitchen/bar tickets**.
-* **Contactless QR "order at the table"** so diners order from their phone.
+* **Takeaway, collection and delivery** ordering with a diner-facing menu, dish customizations (removable ingredients, choose-your-options with prices) and an accept / hold / refund workflow that only captures payment when you accept.
+* **Contactless QR "order at the table"** so diners order from their phone — straight onto that table's tab, or pay-upfront.
+* **Kitchen & bar ticket routing** — printable tickets per station, or emailed directly to a kitchen printer on accept.
+* **86 a dish in one tap** — sold-out dishes stay on the menu (SEO-safe) marked unavailable and can't be ordered anywhere.
+* **Branded, editable email templates** for order and booking notifications, with a live preview.
+
+**Point of sale — Take Order**
+
+* A real **POS for dine-in service**, in any browser on any tablet — no proprietary hardware, nothing to lease.
+* **Tabs with coursing** — build each table's order, fire courses to the kitchen in rounds.
+* **Bill splitting** — evenly, by item, or partial payments; service charge and tips.
+* **Every tender** — cash with change calculation, card via a Stripe smart reader, pay-by-QR from the guest's phone, vouchers and comps; manager-gated voids.
+* **Cash-up** with opening float and X/Z reports at close.
+* **Loyalty built in** — members earn points on spend and redeem them as a bill discount.
 
 **Bookings & events**
 
 * **Commission-free table bookings** — a drag-and-drop floor plan with joinable tables, a public booking form (block + `[dinekit_booking]` shortcode) with live availability, waitlist and covers-per-hour pacing, deposits, and a booking diary with email notifications and printable slips.
+* **Full-width service timeline** — the whole service at a glance; drag to move a booking, click to seat or edit.
 * **Set-menu events with per-guest pre-orders** via a share link — guests choose their courses and flag allergens; the kitchen gets a consolidated prep sheet.
 
 **Payments, guests & staff**
 
-* **Card payments with your own Stripe keys** (encrypted at rest) — booking deposits and order payments, Apple Pay and Google Pay. You keep 100%.
+* **Card payments with your own Stripe keys** (encrypted at rest) — booking deposits, order payments and at-the-table card-present payments via Stripe smart readers, with Apple Pay and Google Pay. You keep 100%.
 * **Guest CRM** — repeat-visit history with the allergies diners have told you about, carried across every visit.
 * **Staff logins** with a role-to-permission matrix and an activity/audit log, plus review-request emails to win diners back.
+* **Reports** — covers, revenue, best-selling dishes and no-show rate, with CSV export.
+* **Direct support from your dashboard** — message the DineKit team without leaving WordPress (optional; see External Services).
 
 No WooCommerce required and no page builder needed. The menu, allergens and QR codes work with no external accounts; card payments use your own Stripe account (see External Services below). Works with any theme, on any host.
 
@@ -46,14 +61,26 @@ Built by [Web Level Up](https://weblevelup.co.uk/), a UK web agency that builds 
 = Does DineKit need WooCommerce? =
 No. DineKit has zero dependencies.
 
-= Is it really free? =
-Yes — everything listed above is free. No feature-gating of allergen icons, schema or QR codes.
+= Is it really free? What's the catch? =
+Everything listed above is free — the menus, ordering, bookings, the POS, loyalty, all of it. There is no feature-gating and DineKit never takes a cut of your sales. The only cost that exists anywhere is Stripe's own standard card-processing fee if you enable card payments, and that goes to Stripe, not us.
+
+= Do I need special hardware for the POS? =
+No. Take Order runs in any browser on any tablet, laptop or phone. For card-present payments you can add any standard Stripe smart reader (bought outright from Stripe — no leases), and kitchen tickets can print via your browser or be emailed straight to a kitchen printer.
 
 = Does it work with my theme? =
 Yes. Menu output is self-contained with its own scoped styles, and works on both block and classic themes.
 
 = How do diners see the menu? =
 Add the DineKit Menu block (or the [dinekit_menu] shortcode) to any page. You can also print a QR code for your tables that opens the menu on a phone.
+
+= Can diners order and pay at the table? =
+Yes. Print DineKit's QR table cards — diners scan, order from their phone, and their order fires straight to the kitchen on that table's tab (or they pay up front, your choice).
+
+= Who owns my data? =
+You do. Everything — menus, bookings, orders, guests — lives in your own WordPress database on your own hosting. There's no external account holding your customer list, and no vendor that can freeze your funds or your data.
+
+= How do I get support? =
+Right from your dashboard: DineKit → Support messages our team directly and replies land back in the same screen (and your inbox). Prefer not to? The wordpress.org support forum works too — we watch both.
 
 == External services ==
 
@@ -94,6 +121,8 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 6. The public table-booking form — live availability, party size and deposits, as a block or shortcode.
 7. Reports — covers, revenue, no-show rate and your best-selling dishes.
 8. Set-menu events with per-guest pre-orders via a share link, and a consolidated kitchen prep sheet.
+9. Take Order — the built-in POS: tabs with coursing, fire rounds to the kitchen, split the bill, every tender from cash to smart reader.
+10. The drag-and-drop floor plan — zones, joinable tables and covers, driving live booking availability.
 
 == Changelog ==
 
