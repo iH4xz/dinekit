@@ -126,6 +126,11 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.8 =
+* New: set your country and restaurant address in Settings. DineKit now speaks your local language for addresses — "ZIP code" and "State" in the US, "Postcode" and "County" in the UK, "Postal code" elsewhere — across the dashboard and your delivery form.
+* Better local SEO worldwide: your address now feeds Google-friendly LocalBusiness structured data (street, town/city, postal code, region and country).
+* Fix: menu prices now report your real currency to search engines. Previously the menu's structured data always said GBP, even for non-UK restaurants.
+
 = 1.2.7 =
 * New: a notification bell in the top bar, on every screen, shows what needs your attention right now — orders to accept, bookings to confirm, your waitlist and pending holiday requests — and each one is a single click straight to where you deal with it. It only shows things you have permission to action.
 

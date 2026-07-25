@@ -358,15 +358,38 @@ function schema_jsonld( $data ) {
 			);
 		}
 	}
-	if ( empty( $spec ) ) {
+	// The restaurant's own address, region-aware, for local SEO.
+	require_once DINEKIT_DIR . 'includes/settings.php';
+	$s       = \DineKit\Settings\get();
+	$address = array_filter(
+		array(
+			'streetAddress'   => (string) $s['addr_street'],
+			'addressLocality' => (string) $s['addr_city'],
+			'addressRegion'   => (string) $s['addr_region'],
+			'postalCode'      => (string) $s['addr_postcode'],
+			'addressCountry'  => (string) $s['country'],
+		),
+		static function ( $v ) {
+			return '' !== $v;
+		}
+	);
+
+	// Emit the LocalBusiness node if we have EITHER opening hours or an address.
+	if ( empty( $spec ) && empty( $address ) ) {
 		return '';
 	}
+
 	$node = array(
-		'@context'                     => 'https://schema.org',
-		'@type'                        => 'LocalBusiness',
-		'name'                         => $data['name'] ? $data['name'] : get_bloginfo( 'name' ),
-		'openingHoursSpecification'    => $spec,
+		'@context' => 'https://schema.org',
+		'@type'    => 'LocalBusiness',
+		'name'     => $data['name'] ? $data['name'] : get_bloginfo( 'name' ),
 	);
+	if ( ! empty( $address ) ) {
+		$node['address'] = array_merge( array( '@type' => 'PostalAddress' ), $address );
+	}
+	if ( ! empty( $spec ) ) {
+		$node['openingHoursSpecification'] = $spec;
+	}
 	// JSON_HEX_TAG hex-escapes < and > so no stored value can break out of the
 	// <script> element.
 	return '<script type="application/ld+json">' .

@@ -26,6 +26,8 @@ function render( $menu_id = 0, $heading = '' ) {
 
 	$settings = \DineKit\Ordering\get_settings();
 	$s        = \DineKit\Settings\get();
+	require_once DINEKIT_DIR . 'includes/localisation.php';
+	$postcode_word = \DineKit\L10n\postcode_label( (string) $s['country'] );
 
 	wp_enqueue_style( 'dinekit-order' );
 	wp_enqueue_script( 'dinekit-order' );
@@ -94,7 +96,11 @@ function render( $menu_id = 0, $heading = '' ) {
 				'minOrder'      => __( 'Minimum order', 'dinekit' ),
 				'collection'    => __( 'Collection', 'dinekit' ),
 				'delivery'      => __( 'Delivery', 'dinekit' ),
-				'address'       => __( 'Delivery address', 'dinekit' ),
+				'address'       => sprintf(
+					/* translators: %s: the local word for a postal code (e.g. ZIP code, Postcode). */
+					__( 'Delivery address (incl. %s)', 'dinekit' ),
+					$postcode_word
+				),
 				'deliveryFee'   => __( 'Delivery', 'dinekit' ),
 				'subtotal'      => __( 'Subtotal', 'dinekit' ),
 				'needAddress'   => __( 'Please enter your delivery address.', 'dinekit' ),

@@ -26,6 +26,13 @@ function defaults() {
 		'currency'         => '£',
 		'currencyPosition' => 'before', // before | after.
 		'businessType'     => 'both',   // dinein | takeaway | both — gates features.
+		// Localisation + the restaurant's own address (feeds LocalBusiness schema
+		// and drives region-aware address labels). Country is ISO 3166-1 alpha-2.
+		'country'          => '',
+		'addr_street'      => '',
+		'addr_city'        => '',
+		'addr_postcode'    => '',
+		'addr_region'      => '',
 		// Menu look. `template` picks the flavour (see templates()); the colours
 		// below are OPTIONAL overrides — empty means "use the template's".
 		'template'         => 'maison', // One of the flavours from templates().
@@ -123,6 +130,18 @@ function save( $input ) {
 	}
 	if ( isset( $input['businessType'] ) && in_array( $input['businessType'], array( 'dinein', 'takeaway', 'both' ), true ) ) {
 		$clean['businessType'] = (string) $input['businessType'];
+	}
+
+	// Country (validated against the known list) + the restaurant's address.
+	if ( isset( $input['country'] ) ) {
+		require_once DINEKIT_DIR . 'includes/localisation.php';
+		$code             = strtoupper( sanitize_text_field( (string) $input['country'] ) );
+		$clean['country'] = array_key_exists( $code, \DineKit\L10n\countries() ) ? $code : '';
+	}
+	foreach ( array( 'addr_street', 'addr_city', 'addr_postcode', 'addr_region' ) as $field ) {
+		if ( isset( $input[ $field ] ) ) {
+			$clean[ $field ] = sanitize_text_field( (string) $input[ $field ] );
+		}
 	}
 
 	// Menu colour overrides (#rrggbb, or empty to fall back to the template).

@@ -534,6 +534,11 @@ function render_matrix( $groups, $allergen_map ) {
  * @return string
  */
 function schema_jsonld( $groups, $args ) {
+	require_once DINEKIT_DIR . 'includes/settings.php';
+	require_once DINEKIT_DIR . 'includes/localisation.php';
+	$settings      = \DineKit\Settings\get();
+	$currency_code = \DineKit\L10n\currency_code( (string) $settings['country'], (string) $settings['currency'] );
+
 	$sections = array();
 	foreach ( $groups as $group ) {
 		$items = array();
@@ -550,11 +555,15 @@ function schema_jsonld( $groups, $args ) {
 				$first  = reset( $prices );
 				$amount = isset( $first['amount'] ) ? preg_replace( '/[^0-9.]/', '', (string) $first['amount'] ) : '';
 				if ( '' !== $amount ) {
-					$node['offers'] = array(
-						'@type'         => 'Offer',
-						'price'         => $amount,
-						'priceCurrency' => 'GBP',
+					$offer = array(
+						'@type' => 'Offer',
+						'price' => $amount,
 					);
+					// Report the venue's real currency, not a UK default.
+					if ( '' !== $currency_code ) {
+						$offer['priceCurrency'] = $currency_code;
+					}
+					$node['offers'] = $offer;
 				}
 			}
 			$items[] = $node;

@@ -6,6 +6,7 @@ import {
 	TextField,
 	ToggleButtonGroup,
 	ToggleButton,
+	MenuItem,
 	CircularProgress,
 } from '../ui';
 import { tokens } from '../theme';
@@ -14,6 +15,7 @@ import { useToast } from './Toast';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+import { COUNTRIES, postcodeLabel, regionLabel } from '../lib/l10n';
 
 const PRESETS = [ '#b91c1c', '#0ea5e9', '#16a34a', '#7c3aed', '#d97706', '#0f172a', '#db2777' ];
 
@@ -139,6 +141,69 @@ export default function SettingsView() {
 							? `9.50${ settings.currency }`
 							: `${ settings.currency }9.50` }
 					</Typography>
+				</Card>
+
+				<Card>
+					<Typography sx={ { fontWeight: 650, fontSize: 15 } }>Restaurant details</Typography>
+					<Typography sx={ { fontSize: 13, color: tokens.muted, mt: 0.25, mb: 2 } }>
+						Your country and address help local search (like Google) show your restaurant
+						correctly, and set the right labels across DineKit.
+					</Typography>
+					<Stack spacing={ 2 }>
+						<Box>
+							<Typography sx={ { fontSize: 12, color: tokens.muted, mb: 0.5 } }>Country</Typography>
+							<TextField
+								select
+								value={ settings.country || '' }
+								onChange={ ( e ) => update( { country: e.target.value } ) }
+								sx={ { minWidth: 240 } }
+							>
+								<MenuItem value="">Select a country…</MenuItem>
+								{ COUNTRIES.map( ( [ code, name ] ) => (
+									<MenuItem key={ code } value={ code }>{ name }</MenuItem>
+								) ) }
+							</TextField>
+						</Box>
+						<Box>
+							<Typography sx={ { fontSize: 12, color: tokens.muted, mb: 0.5 } }>Street address</Typography>
+							<TextField
+								value={ settings.addr_street || '' }
+								onChange={ ( e ) => update( { addr_street: e.target.value } ) }
+								fullWidth
+							/>
+						</Box>
+						<Stack direction={ { xs: 'column', sm: 'row' } } spacing={ 2 }>
+							<Box sx={ { flex: 1 } }>
+								<Typography sx={ { fontSize: 12, color: tokens.muted, mb: 0.5 } }>Town / City</Typography>
+								<TextField
+									value={ settings.addr_city || '' }
+									onChange={ ( e ) => update( { addr_city: e.target.value } ) }
+									fullWidth
+								/>
+							</Box>
+							<Box sx={ { flex: 1 } }>
+								<Typography sx={ { fontSize: 12, color: tokens.muted, mb: 0.5 } }>
+									{ postcodeLabel( settings.country ) }
+								</Typography>
+								<TextField
+									value={ settings.addr_postcode || '' }
+									onChange={ ( e ) => update( { addr_postcode: e.target.value } ) }
+									fullWidth
+								/>
+							</Box>
+							<Box sx={ { flex: 1 } }>
+								<Typography sx={ { fontSize: 12, color: tokens.muted, mb: 0.5 } }>
+									{ regionLabel( settings.country ) }{ ' ' }
+									<Box component="span" sx={ { color: tokens.muted2 } }>(optional)</Box>
+								</Typography>
+								<TextField
+									value={ settings.addr_region || '' }
+									onChange={ ( e ) => update( { addr_region: e.target.value } ) }
+									fullWidth
+								/>
+							</Box>
+						</Stack>
+					</Stack>
 				</Card>
 			</Stack>
 		</Page>
