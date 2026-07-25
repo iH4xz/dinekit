@@ -119,7 +119,7 @@ function region_label( $country ) {
  * @return string
  */
 function currency_code( $country, $symbol = '' ) {
-	$eurozone = array( 'IE', 'FR', 'DE', 'ES', 'IT', 'NL', 'BE', 'PT', 'AT', 'FI', 'GR', 'LU', 'SK', 'SI', 'LT', 'LV', 'EE', 'CY', 'MT', 'HR' );
+	$eurozone   = array( 'IE', 'FR', 'DE', 'ES', 'IT', 'NL', 'BE', 'PT', 'AT', 'FI', 'GR', 'LU', 'SK', 'SI', 'LT', 'LV', 'EE', 'CY', 'MT', 'HR' );
 	$by_country = array(
 		'GB' => 'GBP',
 		'US' => 'USD',
@@ -144,7 +144,7 @@ function currency_code( $country, $symbol = '' ) {
 		'BR' => 'BRL',
 		'JP' => 'JPY',
 	);
-	$country = strtoupper( (string) $country );
+	$country    = strtoupper( (string) $country );
 	if ( isset( $by_country[ $country ] ) ) {
 		return $by_country[ $country ];
 	}
@@ -153,6 +153,12 @@ function currency_code( $country, $symbol = '' ) {
 	}
 
 	// No country set — infer from the symbol so existing installs stay correct.
-	$by_symbol = array( '£' => 'GBP', '$' => 'USD', '€' => 'EUR', '¥' => 'JPY', '₹' => 'INR' );
+	$by_symbol = array(
+		'£' => 'GBP',
+		'$' => 'USD',
+		'€' => 'EUR',
+		'¥' => 'JPY',
+		'₹' => 'INR',
+	);
 	return isset( $by_symbol[ trim( (string) $symbol ) ] ) ? $by_symbol[ trim( (string) $symbol ) ] : '';
 }

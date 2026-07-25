@@ -194,8 +194,8 @@ function sanitize_time( $value ) {
  * @return array{open:bool,label:string,until:string,today_periods:array}
  */
 function status() {
-	$tz  = wp_timezone();
-	$now = new \DateTimeImmutable( 'now', $tz );
+	$tz   = wp_timezone();
+	$now  = new \DateTimeImmutable( 'now', $tz );
 	$data = get();
 
 	$day_key   = strtolower( $now->format( 'D' ) ); // mon, tue...
@@ -268,16 +268,16 @@ function format_period( $p ) {
  * @return string
  */
 function render( $args = array() ) {
-	$args = wp_parse_args(
+	$args  = wp_parse_args(
 		$args,
 		array(
 			'show_status' => true,
 			'title'       => '',
 		)
 	);
-	$data   = get();
-	$state  = status();
-	$today  = strtolower( substr( ( new \DateTimeImmutable( 'now', wp_timezone() ) )->format( 'D' ), 0, 3 ) );
+	$data  = get();
+	$state = status();
+	$today = strtolower( substr( ( new \DateTimeImmutable( 'now', wp_timezone() ) )->format( 'D' ), 0, 3 ) );
 
 	ob_start();
 	?>
