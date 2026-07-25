@@ -250,6 +250,31 @@ function rest_list() {
 }
 
 /**
+ * Sanitize the attachment URLs sent by the browser. Screenshots are uploaded to
+ * THIS site's own media library first, so we only accept URLs under our own
+ * uploads directory — never arbitrary external links — and cap the count.
+ *
+ * @param \WP_REST_Request $request Request.
+ * @return string[]
+ */
+function attachment_urls( \WP_REST_Request $request ) {
+	$raw = $request->get_param( 'attachments' );
+	if ( empty( $raw ) || ! is_array( $raw ) ) {
+		return array();
+	}
+	$uploads = wp_upload_dir();
+	$base    = trailingslashit( (string) $uploads['baseurl'] );
+	$clean   = array();
+	foreach ( array_slice( $raw, 0, 8 ) as $url ) {
+		$u = esc_url_raw( trim( (string) $url ) );
+		if ( '' !== $u && 0 === strpos( $u, $base ) ) {
+			$clean[] = $u;
+		}
+	}
+	return $clean;
+}
+
+/**
  * POST /support/tickets — send a new request to the DineKit team.
  *
  * @param \WP_REST_Request $request Request.
@@ -281,6 +306,7 @@ function rest_create( \WP_REST_Request $request ) {
 		'message'     => $message,
 		'type'        => $type,
 		'domain'      => home_url(),
+		'attachments' => attachment_urls( $request ),
 	);
 
 	$token = (string) get_option( TOKEN_OPTION, '' );
@@ -358,8 +384,9 @@ function rest_reply( \WP_REST_Request $request ) {
 		'POST',
 		'tickets/' . (int) $request['id'] . '/reply',
 		array(
-			'site_token' => (string) get_option( TOKEN_OPTION, '' ),
-			'message'    => $message,
+			'site_token'  => (string) get_option( TOKEN_OPTION, '' ),
+			'message'     => $message,
+			'attachments' => attachment_urls( $request ),
 		)
 	);
 	if ( is_wp_error( $data ) ) {

@@ -220,6 +220,22 @@ export const api = {
 	getSupportTickets: () => request( 'GET', `support/tickets?_cb=${ Date.now() }` ),
 	createSupportTicket: ( data ) => request( 'POST', 'support/tickets', data ),
 	getSupportTicket: ( id ) => request( 'GET', `support/tickets/${ id }?_cb=${ Date.now() }` ),
-	replySupportTicket: ( id, message ) => request( 'POST', `support/tickets/${ id }/reply`, { message } ),
+	replySupportTicket: ( id, message, attachments ) => request( 'POST', `support/tickets/${ id }/reply`, { message, attachments } ),
 	closeSupportTicket: ( id ) => request( 'POST', `support/tickets/${ id }/close` ),
+	// Upload a support screenshot to THIS site's own media library; we send the
+	// hub only the resulting URL, so storage stays on the restaurant's side.
+	uploadSupportImage: async ( file ) => {
+		const fd = new FormData();
+		fd.append( 'file', file, file.name || 'screenshot.png' );
+		const res = await fetch( cfg.restRoot + 'wp/v2/media', {
+			method: 'POST',
+			credentials: 'same-origin',
+			headers: { 'X-WP-Nonce': cfg.nonce },
+			body: fd,
+		} );
+		if ( ! res.ok ) {
+			throw new Error( 'Upload failed' );
+		}
+		return res.json();
+	},
 };

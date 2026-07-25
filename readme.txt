@@ -126,6 +126,9 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.9 =
+* New: attach screenshots to your support messages. Paste an image straight into the Support screen (or pick a file) and it's added to your request — so you can show us the problem, not just describe it. Images are saved to your own site's media library; we only receive the link.
+
 = 1.2.8 =
 * New: set your country and restaurant address in Settings. DineKit now speaks your local language for addresses — "ZIP code" and "State" in the US, "Postcode" and "County" in the UK, "Postal code" elsewhere — across the dashboard and your delivery form.
 * Better local SEO worldwide: your address now feeds Google-friendly LocalBusiness structured data (street, town/city, postal code, region and country).

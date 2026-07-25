@@ -22,6 +22,8 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import TipsAndUpdatesIcon from '@mui/icons-material/TipsAndUpdates';
+import AttachFileIcon from '@mui/icons-material/AttachFile';
+import CloseIcon from '@mui/icons-material/Close';
 import { tokens } from '../theme';
 import { api } from '../api/client';
 import Page from './ui/Page';
@@ -125,6 +127,56 @@ export default function SupportView( { openTicketId } ) {
 	const [ visibleCount, setVisibleCount ] = useState( INITIAL_MESSAGES );
 	const scrollRef = useRef( null );
 
+	// Screenshot attachments pending on the next send (create or reply). Uploaded
+	// to this site's own media library; we send the hub only the URLs.
+	const [ attachments, setAttachments ] = useState( [] );
+	const [ uploading, setUploading ] = useState( false );
+	const createFileRef = useRef( null );
+	const replyFileRef = useRef( null );
+
+	const uploadFiles = async ( files ) => {
+		const imgs = Array.from( files || [] ).filter( ( f ) => f.type && f.type.startsWith( 'image/' ) );
+		if ( ! imgs.length ) {
+			return;
+		}
+		setUploading( true );
+		setError( null );
+		try {
+			for ( const f of imgs.slice( 0, 8 ) ) {
+				const media = await api.uploadSupportImage( f );
+				if ( media && media.source_url ) {
+					setAttachments( ( a ) => [ ...a, media.source_url ] );
+				}
+			}
+		} catch ( err ) {
+			setError( 'Could not upload image: ' + err.message );
+		} finally {
+			setUploading( false );
+		}
+	};
+
+	const onPaste = ( e ) => {
+		const items = e.clipboardData && e.clipboardData.items;
+		if ( ! items ) {
+			return;
+		}
+		const files = [];
+		for ( const it of items ) {
+			if ( it.kind === 'file' ) {
+				const f = it.getAsFile();
+				if ( f ) {
+					files.push( f );
+				}
+			}
+		}
+		if ( files.length ) {
+			e.preventDefault();
+			uploadFiles( files );
+		}
+	};
+
+	const removeAttachment = ( url ) => setAttachments( ( a ) => a.filter( ( u ) => u !== url ) );
+
 	// Keep the newest message in view: scroll to the bottom when a ticket opens and
 	// whenever a message is added — but not when "Show earlier" reveals older ones
 	// (that changes visibleCount, not the message count).
@@ -169,6 +221,7 @@ export default function SupportView( { openTicketId } ) {
 		setTicketLoading( true );
 		setError( null );
 		setVisibleCount( INITIAL_MESSAGES );
+		setAttachments( [] );
 		try {
 			const data = await api.getSupportTicket( id );
 			setActiveTicket( data.ticket );
@@ -193,9 +246,10 @@ export default function SupportView( { openTicketId } ) {
 		setSending( true );
 		setError( null );
 		try {
-			const res = await api.createSupportTicket( form );
+			const res = await api.createSupportTicket( { ...form, attachments } );
 			setSent( { email: res.email } );
 			setForm( ( f ) => ( { ...f, subject: '', message: '' } ) );
+			setAttachments( [] );
 			await load();
 			setView( 'list' );
 		} catch ( err ) {
@@ -207,14 +261,15 @@ export default function SupportView( { openTicketId } ) {
 
 	const sendReply = async ( e ) => {
 		e.preventDefault();
-		if ( ! reply.trim() ) {
+		if ( ! reply.trim() && ! attachments.length ) {
 			return;
 		}
 		setSending( true );
 		setError( null );
 		try {
-			await api.replySupportTicket( activeTicket.id, reply );
+			await api.replySupportTicket( activeTicket.id, reply, attachments );
 			setReply( '' );
+			setAttachments( [] );
 			await openTicket( activeTicket.id );
 			load();
 		} catch ( err ) {
@@ -238,6 +293,42 @@ export default function SupportView( { openTicketId } ) {
 	};
 
 	const isClosed = activeTicket && [ 'closed', 'resolved' ].includes( String( activeTicket.status ).toLowerCase() );
+
+	// Attach button + a strip of pending screenshot thumbnails (shared by the new
+	// request form and the reply box).
+	const attachControls = ( fileRef ) => (
+		<Stack direction="row" spacing={ 1 } alignItems="center" flexWrap="wrap" useFlexGap sx={ { rowGap: 1 } }>
+			<Button
+				size="small"
+				variant="text"
+				startIcon={ uploading ? <CircularProgress size={ 14 } /> : <AttachFileIcon sx={ { fontSize: 16 } } /> }
+				onClick={ () => fileRef.current && fileRef.current.click() }
+				disabled={ uploading }
+				sx={ { color: tokens.muted } }
+			>
+				{ uploading ? 'Uploading…' : 'Attach screenshot' }
+			</Button>
+			<input
+				ref={ fileRef }
+				type="file"
+				accept="image/*"
+				multiple
+				hidden
+				onChange={ ( e ) => { uploadFiles( e.target.files ); e.target.value = ''; } }
+			/>
+			{ attachments.map( ( url ) => (
+				<Box key={ url } sx={ { position: 'relative' } }>
+					<Box component="img" src={ url } alt="" sx={ { width: 44, height: 44, objectFit: 'cover', borderRadius: '6px', border: `1px solid ${ tokens.border }` } } />
+					<Box
+						onClick={ () => removeAttachment( url ) }
+						sx={ { position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: 999, bgcolor: tokens.ink, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' } }
+					>
+						<CloseIcon sx={ { fontSize: 11 } } />
+					</Box>
+				</Box>
+			) ) }
+		</Stack>
+	);
 
 	return (
 		<Page width={ 860 }>
@@ -391,16 +482,19 @@ export default function SupportView( { openTicketId } ) {
 								size="small"
 								fullWidth
 							/>
-							<TextField
-								label="Tell us what's happening"
-								required
-								multiline
-								minRows={ 5 }
-								value={ form.message }
-								onChange={ ( e ) => setForm( { ...form, message: e.target.value } ) }
-								placeholder="The more detail the better — what did you expect, and what happened instead?"
-								fullWidth
-							/>
+							<Box onPaste={ onPaste }>
+								<TextField
+									label="Tell us what's happening"
+									required
+									multiline
+									minRows={ 5 }
+									value={ form.message }
+									onChange={ ( e ) => setForm( { ...form, message: e.target.value } ) }
+									placeholder="The more detail the better — what did you expect, and what happened instead? Paste a screenshot to attach it."
+									fullWidth
+								/>
+								<Box sx={ { mt: 1 } }>{ attachControls( createFileRef ) }</Box>
+							</Box>
 
 							<FormControlLabel
 								control={
@@ -507,6 +601,22 @@ export default function SupportView( { openTicketId } ) {
 															} }
 														>
 															{ renderMessage( msg.message ) }
+															{ Array.isArray( msg.attachments ) && msg.attachments.length > 0 && (
+																<Stack direction="row" spacing={ 1 } flexWrap="wrap" useFlexGap sx={ { mt: 1, rowGap: 1 } }>
+																	{ msg.attachments.map( ( url, i ) => (
+																		<Box
+																			key={ i }
+																			component="a"
+																			href={ url }
+																			target="_blank"
+																			rel="noreferrer"
+																			sx={ { display: 'block' } }
+																		>
+																			<Box component="img" src={ url } alt="attachment" sx={ { width: 96, height: 96, objectFit: 'cover', borderRadius: '8px', border: `1px solid ${ mine ? 'rgba(255,255,255,0.35)' : tokens.border }` } } />
+																		</Box>
+																	) ) }
+																</Stack>
+															) }
 														</Box>
 													</Box>
 												);
@@ -517,21 +627,22 @@ export default function SupportView( { openTicketId } ) {
 							} )() }
 
 							{ ! isClosed ? (
-								<Box component="form" onSubmit={ sendReply } sx={ { p: 2, borderTop: `1px solid ${ tokens.border }` } }>
+								<Box component="form" onSubmit={ sendReply } onPaste={ onPaste } sx={ { p: 2, borderTop: `1px solid ${ tokens.border }` } }>
 									<Stack direction="row" spacing={ 1.5 } alignItems="flex-end">
 										<TextField
 											multiline
 											minRows={ 2 }
-											placeholder="Type your reply…"
+											placeholder="Type your reply… (paste a screenshot to attach)"
 											value={ reply }
 											onChange={ ( e ) => setReply( e.target.value ) }
 											fullWidth
 											size="small"
 										/>
-										<Button type="submit" variant="contained" disabled={ sending || ! reply.trim() } sx={ { flexShrink: 0 } }>
+										<Button type="submit" variant="contained" disabled={ sending || ( ! reply.trim() && ! attachments.length ) } sx={ { flexShrink: 0 } }>
 											{ sending ? <CircularProgress size={ 18 } /> : 'Reply' }
 										</Button>
 									</Stack>
+									<Box sx={ { mt: 1 } }>{ attachControls( replyFileRef ) }</Box>
 								</Box>
 							) : (
 								<Box sx={ { p: 2, textAlign: 'center', borderTop: `1px solid ${ tokens.border }`, bgcolor: tokens.soft } }>
