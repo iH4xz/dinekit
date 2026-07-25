@@ -126,6 +126,9 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.10 =
+* New: Kitchen Display. A live kitchen board that shows incoming orders as they move through New → Preparing → Ready, with a timer on every ticket, clear item lists and kitchen notes, and one tap to move an order along. It auto-refreshes and has a full-screen mode, so you can run it on any tablet or a kitchen TV.
+
 = 1.2.9 =
 * New: attach screenshots to your support messages. Paste an image straight into the Support screen (or pick a file) and it's added to your request — so you can show us the problem, not just describe it. Images are saved to your own site's media library; we only receive the link.
 

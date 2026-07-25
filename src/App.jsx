@@ -14,6 +14,8 @@ import StarBorderIcon from '@mui/icons-material/StarBorder';
 import BadgeIcon from '@mui/icons-material/Badge';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
+import RestaurantIcon from '@mui/icons-material/Restaurant';
+import KitchenView from './components/KitchenView';
 import SpaceDashboardIcon from '@mui/icons-material/SpaceDashboard';
 import InsightsIcon from '@mui/icons-material/Insights';
 import { tokens } from './theme';
@@ -55,6 +57,7 @@ const NAV = [
 	{ key: 'bookings', label: 'Bookings', icon: <EventNoteIcon fontSize="small" /> },
 	{ key: 'floor', label: 'Floor Plan', icon: <GridViewIcon fontSize="small" /> },
 	{ key: 'orders', label: 'Orders', icon: <ReceiptLongIcon fontSize="small" /> },
+	{ key: 'kds', label: 'Kitchen Display', icon: <RestaurantIcon fontSize="small" /> },
 	{ key: 'pos', label: 'Take Order', icon: <PointOfSaleIcon fontSize="small" /> },
 	{ key: 'events', label: 'Events', icon: <CelebrationIcon fontSize="small" /> },
 	{ key: 'guests', label: 'Guests', icon: <PeopleAltIcon fontSize="small" /> },
@@ -82,7 +85,7 @@ const ORDERING_ONLY = [ 'orders' ];          // hidden for dine-in-only.
 const NAV_PERM = {
 	home: 'access', reports: 'access',
 	bookings: 'bookings', floor: 'bookings', guests: 'bookings',
-	orders: 'orders', pos: 'orders', events: 'events', reviews: 'settings', staff: 'staff',
+	orders: 'orders', kds: 'orders', pos: 'orders', events: 'events', reviews: 'settings', staff: 'staff',
 	builder: 'menu', design: 'menu', qr: 'menu', hours: 'menu',
 	integrations: 'settings', emails: 'settings', access: 'owner', activity: 'staff', settings: 'settings',
 	support: 'access',
@@ -188,6 +191,7 @@ export default function App() {
 							{ activeView === 'hours' && <HoursEditor /> }
 							{ activeView === 'qr' && <QRView /> }
 							{ activeView === 'orders' && <OrdersView /> }
+							{ activeView === 'kds' && <KitchenView /> }
 						{ activeView === 'pos' && <POSView /> }
 							{ activeView === 'bookings' && <BookingsView /> }
 							{ activeView === 'floor' && <FloorPlan /> }
