@@ -103,7 +103,12 @@ function rest_get() {
 	if ( can( 'orders' ) ) {
 		$orders = count_where(
 			'dinekit_order',
-			array( array( 'key' => 'dinekit_order_status', 'value' => 'new' ) )
+			array(
+				array(
+					'key'   => 'dinekit_order_status',
+					'value' => 'new',
+				),
+			)
 		);
 		if ( $orders > 0 ) {
 			$items[] = array(
@@ -122,11 +127,22 @@ function rest_get() {
 
 	// Upcoming bookings still to be confirmed, and the waitlist.
 	if ( can( 'bookings' ) ) {
-		$date_upcoming = array( 'key' => 'dinekit_date', 'value' => $today, 'compare' => '>=', 'type' => 'DATE' );
+		$date_upcoming = array(
+			'key'     => 'dinekit_date',
+			'value'   => $today,
+			'compare' => '>=',
+			'type'    => 'DATE',
+		);
 
 		$pending = count_where(
 			'dinekit_booking',
-			array( array( 'key' => 'dinekit_status', 'value' => 'pending' ), $date_upcoming )
+			array(
+				array(
+					'key'   => 'dinekit_status',
+					'value' => 'pending',
+				),
+				$date_upcoming,
+			)
 		);
 		if ( $pending > 0 ) {
 			$items[] = array(
@@ -144,7 +160,13 @@ function rest_get() {
 
 		$waitlist = count_where(
 			'dinekit_booking',
-			array( array( 'key' => 'dinekit_status', 'value' => 'provisional' ), $date_upcoming )
+			array(
+				array(
+					'key'   => 'dinekit_status',
+					'value' => 'provisional',
+				),
+				$date_upcoming,
+			)
 		);
 		if ( $waitlist > 0 ) {
 			$items[] = array(
@@ -165,7 +187,12 @@ function rest_get() {
 	if ( can( 'staff' ) ) {
 		$leave = count_where(
 			'dinekit_leave',
-			array( array( 'key' => 'dinekit_leave_status', 'value' => 'pending' ) )
+			array(
+				array(
+					'key'   => 'dinekit_leave_status',
+					'value' => 'pending',
+				),
+			)
 		);
 		if ( $leave > 0 ) {
 			$items[] = array(
