@@ -126,6 +126,9 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.7 =
+* New: a notification bell in the top bar, on every screen, shows what needs your attention right now — orders to accept, bookings to confirm, your waitlist and pending holiday requests — and each one is a single click straight to where you deal with it. It only shows things you have permission to action.
+
 = 1.2.6 =
 * Support conversations now open at the newest message, so you don't have to scroll to see the latest reply.
 * Long support threads stay light — only the most recent messages load, with a "Show earlier messages" button for the rest.

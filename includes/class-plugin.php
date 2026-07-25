@@ -123,6 +123,9 @@ final class Plugin {
 		if ( $this->load( 'plugin-review.php' ) ) {
 			PluginReview\init();
 		}
+		if ( $this->load( 'notifications.php' ) ) {
+			Notifications\init();
+		}
 		if ( is_admin() ) {
 			if ( $this->load( 'admin/admin.php' ) ) {
 				Admin\init();

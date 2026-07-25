@@ -206,6 +206,9 @@ export const api = {
 		return res.ok ? res.json() : [];
 	},
 
+	// Notification center feed (local, actionable items).
+	getNotifications: () => request( 'GET', 'notifications' ),
+
 	// wordpress.org review prompt.
 	getReviewAsk: () => request( 'GET', 'review-ask' ),
 	actReviewAsk: ( action ) => request( 'POST', 'review-ask', { action } ),

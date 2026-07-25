@@ -8,6 +8,7 @@ import EventSeatIcon from '@mui/icons-material/EventSeat';
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { tokens } from '../theme';
+import NotificationCenter from './NotificationCenter';
 
 const STATES = {
 	idle: { icon: <CloudDoneIcon sx={ { fontSize: 15 } } />, text: 'All changes saved', fg: tokens.muted, bg: tokens.soft },
@@ -57,6 +58,9 @@ export default function Topbar( { saveStatus, title, navigate, businessType } ) 
 					{ state.icon }
 					<Typography sx={ { fontSize: 12, fontWeight: 550 } }>{ state.text }</Typography>
 				</Stack>
+
+				{ /* Notification center — actionable items, on every screen */ }
+				<NotificationCenter navigate={ navigate } />
 
 				{ /* Global quick-create */ }
 				<Button
