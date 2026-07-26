@@ -129,6 +129,7 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 9. Take Order opens on your live floor plan — every table colour-coded by how long it's been seated (with a timer on each), free tables ready to seat and settled tables flagged for clearing. Tap a table to open its tab, course and fire to the kitchen, split the bill and take any payment.
 10. The drag-and-drop floor plan — zones, joinable tables and covers, driving live booking availability.
 11. Kitchen Display — a live New → Preparing → Ready board; every fired round is its own ticket with a wait timer, and a full-screen mode for a kitchen TV.
+12. Staff rota — group the week by role in colour-coded bands, see each person's scheduled hours (with over-contract warnings), and approve holiday requests right on the rota.
 
 == Changelog ==
 
