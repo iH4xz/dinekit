@@ -223,6 +223,17 @@ function order_response( $id ) {
  * @return \WP_REST_Response|\WP_Error
  */
 function create_order( $request ) {
+	// Idempotency: a client that queued this order offline sends a stable
+	// clientRef. If we've already created an order for that ref (e.g. the tablet
+	// reconnected and replayed the queue), return the existing one instead of
+	// minting a duplicate.
+	$client_ref = sanitize_text_field( (string) $request->get_param( 'clientRef' ) );
+	if ( '' !== $client_ref ) {
+		$existing = find_order_by_client_ref( $client_ref );
+		if ( $existing ) {
+			return rest_ensure_response( order_response( $existing ) );
+		}
+	}
 	$channel  = (string) $request->get_param( 'channel' );
 	$channel  = in_array( $channel, array( 'online', 'takeaway', 'dine_in', 'delivery' ), true ) ? $channel : 'takeaway';
 	$dine_in  = 'dine_in' === $channel;
@@ -273,9 +284,40 @@ function create_order( $request ) {
 	update_post_meta( $post_id, 'dinekit_order_when', $when );
 	update_post_meta( $post_id, 'dinekit_order_payment', $payment );
 	update_post_meta( $post_id, 'dinekit_order_source', 'staff' );
+	if ( '' !== $client_ref ) {
+		update_post_meta( $post_id, 'dinekit_order_client_ref', $client_ref );
+	}
 	Ordering\log_event( $post_id, __( 'Order created by staff', 'dinekit' ) );
 
 	return rest_ensure_response( order_response( $post_id ) );
+}
+
+/**
+ * Find an existing order by its client idempotency ref (offline-queue replay).
+ *
+ * @param string $ref Client-supplied stable ref.
+ * @return int Order post id, or 0 if none.
+ */
+function find_order_by_client_ref( $ref ) {
+	if ( '' === $ref ) {
+		return 0;
+	}
+	$ids = get_posts(
+		array(
+			'post_type'      => 'dinekit_order',
+			'post_status'    => 'any',
+			'posts_per_page' => 1,
+			'no_found_rows'  => true,
+			'fields'         => 'ids',
+			'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				array(
+					'key'   => 'dinekit_order_client_ref',
+					'value' => $ref,
+				),
+			),
+		)
+	);
+	return $ids ? (int) $ids[0] : 0;
 }
 
 /**
@@ -547,7 +589,7 @@ function update_order( $request ) {
 			}
 		}
 		$amt = round( (float) $request->get_param( 'amount' ), 2 );
-		Ordering\add_tender( $id, $ttype, $amt );
+		Ordering\add_tender( $id, $ttype, $amt, '', sanitize_text_field( (string) $request->get_param( 'ref' ) ) );
 		require_once DINEKIT_DIR . 'includes/settings.php';
 		$sym = isset( \DineKit\Settings\get()['currency'] ) ? \DineKit\Settings\get()['currency'] : '£';
 		/* translators: 1: order number, 2: currency symbol, 3: amount, 4: tender type. */
@@ -730,6 +772,18 @@ function add_lines( $request ) {
 	$computed = Ordering\recompute( (array) $request->get_param( 'items' ) );
 	if ( empty( $computed['items'] ) ) {
 		return new \WP_Error( 'dinekit_order_empty', __( 'Add at least one item.', 'dinekit' ), array( 'status' => 400 ) );
+	}
+	// Idempotency: a queued-offline batch carries a stable ref. If this batch was
+	// already applied (queue replayed), don't append the lines a second time.
+	$batch_ref = sanitize_text_field( (string) $request->get_param( 'ref' ) );
+	if ( '' !== $batch_ref ) {
+		$applied = json_decode( (string) get_post_meta( $id, 'dinekit_order_applied_refs', true ), true );
+		$applied = is_array( $applied ) ? $applied : array();
+		if ( in_array( $batch_ref, $applied, true ) ) {
+			return rest_ensure_response( order_response( $id ) );
+		}
+		$applied[] = $batch_ref;
+		update_post_meta( $id, 'dinekit_order_applied_refs', wp_json_encode( array_slice( $applied, -200 ) ) );
 	}
 	$existing = json_decode( (string) get_post_meta( $id, 'dinekit_order_items', true ), true );
 	$existing = is_array( $existing ) ? $existing : array();

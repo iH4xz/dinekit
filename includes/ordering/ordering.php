@@ -740,20 +740,33 @@ function grand_total( $order_id ) {
  * @param string $via      Optional channel note (e.g. 'qr').
  * @return void
  */
-function add_tender( $order_id, $type, $amount, $via = '' ) {
+function add_tender( $order_id, $type, $amount, $via = '', $ref = '' ) {
 	$amount = round( (float) $amount, 2 );
 	if ( $amount <= 0 ) {
 		return;
 	}
 	$tenders = json_decode( (string) get_post_meta( $order_id, 'dinekit_order_tenders', true ), true );
 	$tenders = is_array( $tenders ) ? $tenders : array();
-	$tender  = array(
+	// Idempotency: a cash tender queued offline carries a stable ref. If a tender
+	// with that ref is already recorded (queue replayed), do nothing — never
+	// record a payment twice or settle the tab a second time.
+	if ( '' !== $ref ) {
+		foreach ( $tenders as $t ) {
+			if ( isset( $t['ref'] ) && $t['ref'] === $ref ) {
+				return;
+			}
+		}
+	}
+	$tender = array(
 		'type'   => $type,
 		'amount' => $amount,
 		't'      => current_time( 'c' ),
 	);
 	if ( '' !== $via ) {
 		$tender['via'] = $via;
+	}
+	if ( '' !== $ref ) {
+		$tender['ref'] = $ref;
 	}
 	$tenders[] = $tender;
 	update_post_meta( $order_id, 'dinekit_order_tenders', wp_json_encode( $tenders ) );
