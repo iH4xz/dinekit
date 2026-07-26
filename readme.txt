@@ -34,6 +34,7 @@ DineKit turns WordPress into a complete, commission-free restaurant platform —
 **Point of sale — Take Order**
 
 * A real **POS for dine-in service**, in any browser on any tablet — no proprietary hardware, nothing to lease.
+* **Live floor plan** — Take Order opens on your real room layout, with every table colour-coded by how long it's been seated (turning green → amber → red against your table-turn time), free tables ready to seat and settled tables flagged for clearing; tap a table to open its tab.
 * **Tabs with coursing** — build each table's order, fire courses to the kitchen in rounds.
 * **Bill splitting** — evenly, by item, or partial payments; service charge and tips.
 * **Every tender** — cash with change calculation, card via a Stripe smart reader, pay-by-QR from the guest's phone, vouchers and comps; manager-gated voids.
@@ -125,7 +126,7 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 6. The public table-booking form — live availability, party size and deposits, as a block or shortcode.
 7. Reports — covers, revenue, no-show rate and your best-selling dishes.
 8. Set-menu events with per-guest pre-orders via a share link, and a consolidated kitchen prep sheet.
-9. Take Order — the built-in POS: tabs with coursing, fire rounds to the kitchen, split the bill, every tender from cash to smart reader.
+9. Take Order opens on your live floor plan — every table colour-coded by how long it's been seated (with a timer on each), free tables ready to seat and settled tables flagged for clearing. Tap a table to open its tab, course and fire to the kitchen, split the bill and take any payment.
 10. The drag-and-drop floor plan — zones, joinable tables and covers, driving live booking availability.
 11. Kitchen Display — a live New → Preparing → Ready board; every fired round is its own ticket with a wait timer, and a full-screen mode for a kitchen TV.
 
