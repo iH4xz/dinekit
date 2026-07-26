@@ -127,6 +127,7 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 8. Set-menu events with per-guest pre-orders via a share link, and a consolidated kitchen prep sheet.
 9. Take Order — the built-in POS: tabs with coursing, fire rounds to the kitchen, split the bill, every tender from cash to smart reader.
 10. The drag-and-drop floor plan — zones, joinable tables and covers, driving live booking availability.
+11. Kitchen Display — a live New → Preparing → Ready board; every fired round is its own ticket with a wait timer, and a full-screen mode for a kitchen TV.
 
 == Changelog ==
 
