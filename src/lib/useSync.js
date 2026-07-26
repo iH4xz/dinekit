@@ -116,6 +116,7 @@ export function startSync() {
 	} );
 	window.addEventListener( 'online', () => {
 		online = true;
+		notify(); // update the offline banner immediately; the kick confirms.
 		kick();
 	} );
 	window.addEventListener( 'offline', () => {

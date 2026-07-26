@@ -48,7 +48,8 @@ import HistoryIcon from '@mui/icons-material/History';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import SupportView from './components/SupportView';
 import Wizard from './components/Wizard';
-import { startSync } from './lib/useSync';
+import { startSync, useOnline } from './lib/useSync';
+import CloudOffIcon from '@mui/icons-material/CloudOff';
 
 // Grouped so the sidebar reads like a product, not a feature dump.
 const NAV = [
@@ -162,6 +163,8 @@ export default function App() {
 					businessType={ store.data && store.data.businessType }
 				/>
 
+				<OfflineBanner />
+
 				<Box sx={ { flex: 1, p: 4, overflow: 'auto' } }>
 					{ store.loading && (
 						<Box sx={ { display: 'flex', justifyContent: 'center', mt: 10 } }>
@@ -218,6 +221,36 @@ export default function App() {
 					) }
 				</Box>
 			</Box>
+		</Box>
+	);
+}
+
+// A thin bar that appears only when the connection drops, so staff know the app
+// is offline. Detection is the heartbeat-aware signal from useSync (a failed
+// heartbeat flips it, not just the browser flag).
+function OfflineBanner() {
+	const online = useOnline();
+	if ( online ) {
+		return null;
+	}
+	return (
+		<Box
+			role="status"
+			sx={ {
+				display: 'flex',
+				alignItems: 'center',
+				gap: 1,
+				px: 2,
+				py: 1,
+				bgcolor: tokens.amberSoft,
+				borderBottom: `1px solid ${ tokens.amber }`,
+				color: tokens.amber,
+				fontSize: 13,
+				fontWeight: 600,
+			} }
+		>
+			<CloudOffIcon sx={ { fontSize: 18 } } />
+			You’re offline — DineKit will reconnect automatically. Take card payments only once you’re back online.
 		</Box>
 	);
 }
