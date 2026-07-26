@@ -1,7 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Stack, Typography, TextField, InputAdornment, Chip, Alert } from '../ui';
 import AddIcon from '@mui/icons-material/Add';
 import SearchIcon from '@mui/icons-material/Search';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+import { useToast } from './Toast';
 import {
 	DndContext,
 	DragOverlay,
@@ -102,6 +105,66 @@ export default function MenuBuilder( { store, openItemId, onOpenItem } ) {
 	const [ query, setQuery ] = useState( '' );
 	const [ collapsed, setCollapsed ] = useState( {} );
 	const toggleCollapse = ( key ) => setCollapsed( ( c ) => ( { ...c, [ key ]: ! c[ key ] } ) );
+
+	// CSV import / export.
+	const toast = useToast();
+	const fileRef = useRef( null );
+	const [ csvBusy, setCsvBusy ] = useState( false );
+	const exportCsv = async () => {
+		setCsvBusy( true );
+		try {
+			const res = await api.exportMenu();
+			const blob = new Blob( [ res.csv ], { type: 'text/csv;charset=utf-8;' } );
+			const url = URL.createObjectURL( blob );
+			const a = document.createElement( 'a' );
+			a.href = url;
+			a.download = res.filename || 'dinekit-menu.csv';
+			document.body.appendChild( a );
+			a.click();
+			a.remove();
+			URL.revokeObjectURL( url );
+			toast.info( 'Menu exported', `${ res.count } dish${ res.count === 1 ? '' : 'es' } saved to CSV.` );
+		} catch ( e ) {
+			toast.error( 'Export failed', e.message );
+		} finally {
+			setCsvBusy( false );
+		}
+	};
+	const importCsv = async ( file ) => {
+		if ( ! file ) {
+			return;
+		}
+		setCsvBusy( true );
+		try {
+			const csv = await file.text();
+			const r = await api.importMenu( csv );
+			await store.reload();
+			const bits = [];
+			if ( r.created ) {
+				bits.push( `${ r.created } added` );
+			}
+			if ( r.updated ) {
+				bits.push( `${ r.updated } updated` );
+			}
+			if ( r.sectionsCreated ) {
+				bits.push( `${ r.sectionsCreated } new section${ r.sectionsCreated === 1 ? '' : 's' }` );
+			}
+			if ( r.skipped ) {
+				bits.push( `${ r.skipped } skipped` );
+			}
+			toast.info( 'Menu imported', bits.length ? bits.join( ' · ' ) : 'No changes.' );
+			if ( r.unknownAllergens && r.unknownAllergens.length ) {
+				toast.error( 'Some allergens were not recognised', `Left off: ${ r.unknownAllergens.join( ', ' ) }. Add them under Allergens first, then re-import.` );
+			}
+		} catch ( e ) {
+			toast.error( 'Import failed', e.message );
+		} finally {
+			setCsvBusy( false );
+			if ( fileRef.current ) {
+				fileRef.current.value = '';
+			}
+		}
+	};
 
 	// Archive confirmation. `usage` is fetched while the dialog is open so the
 	// owner can see whether the dish is on an order that's being cooked right now.
@@ -429,6 +492,21 @@ export default function MenuBuilder( { store, openItemId, onOpenItem } ) {
 					{ activeItem ? <ItemRow item={ activeItem } overlay /> : null }
 				</DragOverlay>
 			</DndContext>
+
+			<Stack direction="row" spacing={ 1 } alignItems="center" flexWrap="wrap" sx={ { mt: 2, mb: 0.5 } }>
+				<Typography sx={ { fontSize: 12.5, color: tokens.muted, mr: 0.5 } }>Bulk edit</Typography>
+				<Button size="small" variant="outlined" startIcon={ <FileDownloadIcon /> } disabled={ csvBusy } onClick={ exportCsv }>Export CSV</Button>
+				<Button size="small" variant="outlined" startIcon={ <FileUploadIcon /> } disabled={ csvBusy } onClick={ () => fileRef.current && fileRef.current.click() }>Import CSV</Button>
+				<Box
+					component="input"
+					ref={ fileRef }
+					type="file"
+					accept=".csv,text/csv"
+					onChange={ ( e ) => importCsv( e.target.files && e.target.files[ 0 ] ) }
+					sx={ { display: 'none' } }
+				/>
+				<Typography sx={ { fontSize: 11.5, color: tokens.muted2 } }>Export to a spreadsheet, edit, and re-import — matches dishes by name within each section.</Typography>
+			</Stack>
 
 			<Stack
 				direction="row"

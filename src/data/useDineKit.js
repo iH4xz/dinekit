@@ -217,9 +217,14 @@ export function useDineKit() {
 		setData( ( prev ) => ( { ...prev, sections: updater( prev.sections ) } ) );
 	}, [] );
 
+	// Re-pull the whole builder state from the server (used after a bulk change
+	// like a CSV import that can create sections + many dishes at once).
+	const reload = useCallback( () => api.getState().then( ( state ) => setData( state ) ), [] );
+
 	return {
 		data,
 		loading,
+		reload,
 		error,
 		saveStatus,
 		createItem,

@@ -75,6 +75,8 @@ export const api = {
 	updateTerm: ( tax, id, name ) => request( 'PATCH', `terms/${ tax }/${ id }`, { name } ),
 	deleteTerm: ( tax, id ) => request( 'DELETE', `terms/${ tax }/${ id }` ),
 	saveOrder: ( payload ) => request( 'POST', 'order', payload ),
+	exportMenu: () => request( 'GET', 'menu/export' ),
+	importMenu: ( csv ) => request( 'POST', 'menu/import', { csv } ),
 	getHours: () => request( 'GET', 'hours' ),
 	saveHours: ( hours ) => request( 'POST', 'hours', hours ),
 	getQr: ( url ) => request( 'GET', 'qr?url=' + encodeURIComponent( url ) ),

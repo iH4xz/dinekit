@@ -81,6 +81,9 @@ final class Plugin {
 		if ( $this->load( 'rest.php' ) ) {
 			Rest\init();
 		}
+		if ( $this->load( 'menu-csv.php' ) ) {
+			MenuCsv\init();
+		}
 		if ( $this->load( 'frontend/frontend.php' ) ) {
 			Frontend\init();
 		}
