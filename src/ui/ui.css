@@ -778,6 +778,8 @@ body .dk-switch .dk-switch__input {
 /* ToggleButtonGroup / ToggleButton — from theme ------------------------- */
 .dk-toggrp {
 	display: inline-flex;
+	flex-wrap: wrap;
+	max-width: 100%;
 	gap: 2px;
 	padding: 3px;
 	border-radius: 9px;
