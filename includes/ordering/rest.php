@@ -896,6 +896,13 @@ function place_order( $request ) {
 		$when = 'asap';
 	}
 
+	// Slot capacity: throttle how many orders target the same kitchen time slot so
+	// a rush doesn't swamp the pass. Rejected before any order/payment is created.
+	$slot = Ordering\slot_key( $when );
+	if ( (int) $settings['slot_max'] > 0 && Ordering\slot_count( $slot ) >= (int) $settings['slot_max'] ) {
+		return new \WP_Error( 'dinekit_slot_full', __( 'That time slot is fully booked — please choose another time.', 'dinekit' ), array( 'status' => 409 ) );
+	}
+
 	$number  = Ordering\next_number();
 	$post_id = wp_insert_post(
 		array(
@@ -922,6 +929,7 @@ function place_order( $request ) {
 	update_post_meta( $post_id, 'dinekit_order_phone', $phone );
 	update_post_meta( $post_id, 'dinekit_order_notes', sanitize_textarea_field( (string) $request->get_param( 'notes' ) ) );
 	update_post_meta( $post_id, 'dinekit_order_when', $when );
+	update_post_meta( $post_id, 'dinekit_order_slot', $slot );
 	update_post_meta( $post_id, 'dinekit_order_source', 'online' );
 	update_post_meta( $post_id, 'dinekit_order_fulfilment', $fulfilment );
 	update_post_meta( $post_id, 'dinekit_order_address', $address );

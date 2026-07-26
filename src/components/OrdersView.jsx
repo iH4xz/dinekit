@@ -690,6 +690,20 @@ function OrderSettings() {
 					sx={ { width: 130 } }
 				/>
 				<TextField
+					label="Max orders / slot" type="number" size="small"
+					value={ cfg.slot_max != null ? cfg.slot_max : 0 }
+					onChange={ ( e ) => patch( { slot_max: Math.max( 0, parseInt( e.target.value, 10 ) || 0 ) } ) }
+					helperText="0 = no limit"
+					sx={ { width: 150 } }
+				/>
+				<TextField
+					label="Slot length (min)" type="number" size="small"
+					value={ cfg.slot_mins != null ? cfg.slot_mins : 15 }
+					onChange={ ( e ) => patch( { slot_mins: Math.max( 5, parseInt( e.target.value, 10 ) || 15 ) } ) }
+					helperText="Kitchen throttle window"
+					sx={ { width: 150 } }
+				/>
+				<TextField
 					label="Kitchen email" type="email" size="small"
 					placeholder="Defaults to site admin"
 					value={ cfg.notify_email }

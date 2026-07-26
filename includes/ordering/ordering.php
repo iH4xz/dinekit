@@ -218,6 +218,7 @@ function register() {
 		'dinekit_order_phone'        => 'string',
 		'dinekit_order_notes'        => 'string',
 		'dinekit_order_when'         => 'string',  // 'asap' or H:i.
+		'dinekit_order_slot'         => 'string',  // Kitchen capacity slot key (Y-m-d H:i bucket).
 		'dinekit_order_payment'      => 'string',  // unpaid | pending | authorized | paid | refunded | released | on_collection.
 		'dinekit_order_source'       => 'string',
 		'dinekit_order_pi'           => 'string',  // Stripe PaymentIntent id.
@@ -271,6 +272,8 @@ function get_settings() {
 		'last_orders_mins' => 0,     // Stop taking orders N mins before close (0 = until close).
 		'prep_mins'        => 30,    // Minimum lead time before collection.
 		'min_order'        => 0,     // Minimum order value (0 = none).
+		'slot_mins'        => 15,    // Kitchen time-slot length, minutes (for capacity throttling).
+		'slot_max'         => 0,     // Max orders per slot (0 = unlimited / off).
 		'emails_enabled'   => true,  // Send customer + kitchen order emails.
 		'notify_email'     => '',    // Kitchen recipient (empty = site admin).
 		'printer_email'    => '',    // Email-to-print device address (auto-print tickets).
@@ -347,6 +350,63 @@ function accepting_orders() {
 }
 
 /**
+ * The kitchen time-slot key for a requested fulfilment time. Orders are bucketed
+ * into slots of `slot_mins`; ASAP orders land in the slot `prep_mins` out (when
+ * the food will actually be ready). The returned key is a stable string used to
+ * count how many orders target the same slot.
+ *
+ * @param string $when 'asap' or 'HH:MM'.
+ * @return string Slot key, e.g. "2026-07-27 19:15".
+ */
+function slot_key( $when ) {
+	$s    = namespace\get_settings();
+	$mins = max( 5, (int) $s['slot_mins'] );
+	// phpcs:ignore WordPress.DateTime.CurrentTimeTimestamp.Requested -- relative slot bucketing, not an absolute/UTC time.
+	$now = current_time( 'timestamp' );
+	if ( 'asap' === $when || ! preg_match( '/^\d{1,2}:\d{2}$/', (string) $when ) ) {
+		$target = $now + ( (int) $s['prep_mins'] * 60 );
+	} else {
+		$target = strtotime( wp_date( 'Y-m-d' ) . ' ' . $when . ':00' );
+		if ( ! $target ) {
+			$target = $now;
+		}
+	}
+	$bucket = (int) floor( $target / ( $mins * 60 ) ) * ( $mins * 60 );
+	return gmdate( 'Y-m-d H:i', $bucket );
+}
+
+/**
+ * How many live (non-cancelled) orders already target a given slot key.
+ *
+ * @param string $slot_key Slot key from slot_key().
+ * @return int
+ */
+function slot_count( $slot_key ) {
+	$ids = get_posts(
+		array(
+			'post_type'      => 'dinekit_order',
+			'post_status'    => 'publish',
+			'posts_per_page' => 200, // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- one slot's orders.
+			'no_found_rows'  => true,
+			'fields'         => 'ids',
+			'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				array(
+					'key'   => 'dinekit_order_slot',
+					'value' => $slot_key,
+				),
+			),
+		)
+	);
+	$n   = 0;
+	foreach ( $ids as $id ) {
+		if ( 'cancelled' !== (string) get_post_meta( $id, 'dinekit_order_status', true ) ) {
+			++$n;
+		}
+	}
+	return $n;
+}
+
+/**
  * Save ordering settings.
  *
  * @param array<string,mixed> $data Incoming.
@@ -374,6 +434,12 @@ function save_settings( $data ) {
 	}
 	if ( isset( $data['min_order'] ) ) {
 		$current['min_order'] = max( 0, (float) $data['min_order'] );
+	}
+	if ( isset( $data['slot_mins'] ) ) {
+		$current['slot_mins'] = max( 5, min( 120, absint( $data['slot_mins'] ) ) );
+	}
+	if ( isset( $data['slot_max'] ) ) {
+		$current['slot_max'] = max( 0, min( 500, absint( $data['slot_max'] ) ) );
 	}
 	if ( isset( $data['service_pct'] ) ) {
 		$current['service_pct'] = max( 0, min( 100, (float) $data['service_pct'] ) );
