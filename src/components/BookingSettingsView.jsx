@@ -17,6 +17,7 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { tokens } from '../theme';
+import { copyToClipboard } from '../lib/clipboard';
 import { api } from '../api/client';
 import Card from './ui/Card';
 import PageHeader from './ui/PageHeader';
@@ -88,9 +89,7 @@ export default function BookingSettingsView( { onBack } ) {
 	);
 
 	const copyShortcode = () => {
-		if ( navigator.clipboard ) {
-			navigator.clipboard.writeText( '[dinekit_booking]' ).then( () => setCopied( true ) );
-		}
+		copyToClipboard( '[dinekit_booking]' ).then( () => setCopied( true ) );
 	};
 
 	const section = ( title, sub ) => (

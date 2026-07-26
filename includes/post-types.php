@@ -190,6 +190,36 @@ function uk_allergens() {
 }
 
 /**
+ * Sub-sources for allergens that have named variants (Natasha's Law: state
+ * WHICH cereal/nut). Keyed by allergen slug → source key → display name. Only the
+ * allergens with meaningful branches are listed; others have none.
+ *
+ * @return array<string,array<string,string>>
+ */
+function allergen_sources() {
+	return array(
+		'gluten' => array(
+			'wheat'  => __( 'Wheat', 'dinekit' ),
+			'barley' => __( 'Barley', 'dinekit' ),
+			'rye'    => __( 'Rye', 'dinekit' ),
+			'oats'   => __( 'Oats', 'dinekit' ),
+			'spelt'  => __( 'Spelt', 'dinekit' ),
+			'kamut'  => __( 'Kamut', 'dinekit' ),
+		),
+		'nuts'   => array(
+			'almond'    => __( 'Almond', 'dinekit' ),
+			'hazelnut'  => __( 'Hazelnut', 'dinekit' ),
+			'walnut'    => __( 'Walnut', 'dinekit' ),
+			'cashew'    => __( 'Cashew', 'dinekit' ),
+			'pecan'     => __( 'Pecan', 'dinekit' ),
+			'brazil'    => __( 'Brazil nut', 'dinekit' ),
+			'pistachio' => __( 'Pistachio', 'dinekit' ),
+			'macadamia' => __( 'Macadamia', 'dinekit' ),
+		),
+	);
+}
+
+/**
  * Default dietary labels seeded on activation (editable/deletable by the user).
  *
  * @return array<string,string>

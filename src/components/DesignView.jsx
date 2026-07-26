@@ -255,18 +255,25 @@ export default function DesignView() {
 						{ [
 							[ 'accent', 'Accent' ],
 							[ 'menu_ink', 'Text' ],
-							[ 'menu_muted', 'Muted text' ],
+							[ 'menu_muted', 'Secondary text' ],
 							[ 'menu_line', 'Lines' ],
 						].map( ( [ key, label ] ) => (
 							<Box key={ key }>
 								<Typography sx={ labelSx }>{ label }</Typography>
-								<Box
-									component="input"
-									type="color"
-									value={ design[ key ] || TEMPLATE_PALETTE[ design.template ][ key ] || '#000000' }
-									onChange={ ( e ) => patchDesign( { [ key ]: e.target.value } ) }
-									sx={ { width: 46, height: 34, p: 0, border: `1px solid ${ tokens.border2 }`, borderRadius: 1, bgcolor: 'transparent', cursor: 'pointer' } }
-								/>
+								<Stack direction="row" spacing={ 0.75 } alignItems="center">
+									<Box
+										component="input"
+										type="color"
+										value={ design[ key ] || TEMPLATE_PALETTE[ design.template ][ key ] || '#000000' }
+										onChange={ ( e ) => patchDesign( { [ key ]: e.target.value } ) }
+										sx={ { width: 46, height: 34, p: 0, border: `1px solid ${ tokens.border2 }`, borderRadius: 1, bgcolor: 'transparent', cursor: 'pointer' } }
+									/>
+									{ design[ key ] && (
+										<Button size="small" onClick={ () => patchDesign( { [ key ]: '' } ) } sx={ { color: tokens.muted, minWidth: 0 } }>
+											Clear
+										</Button>
+									) }
+								</Stack>
 							</Box>
 						) ) }
 						<Box>

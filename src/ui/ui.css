@@ -961,13 +961,15 @@ body .dk-switch .dk-switch__input {
 }
 
 /* Menu / Select popover paper — from theme.MuiMenu */
+/* Above .dk-modal (100005) + .dk-drawer (100000): a dropdown opened from inside
+   a modal/drawer must render over it, or its options are unclickable. */
 .dk-menu-backdrop {
 	position: fixed;
 	inset: 0;
-	z-index: 100001;
+	z-index: 100006;
 }
 .dk-menu__paper {
-	z-index: 100002;
+	z-index: 100007;
 	margin: 0;
 	padding: 6px;
 	list-style: none;
@@ -1035,48 +1037,47 @@ body .dk-switch .dk-switch__input {
 }
 
 /* Drawer — from theme.MuiDrawer */
+/* Drawers now render as large CENTERED popouts (side drawers felt cramped). The
+   component + anchor classes are kept for compatibility, but positioning is
+   centered regardless of anchor. */
 .dk-drawer {
 	position: fixed;
 	inset: 0;
+	z-index: 100000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 20px;
 }
 .dk-drawer__backdrop {
 	position: absolute;
 	inset: 0;
-	background: rgba(24,24,27,.42);
+	background: rgba(24,24,27,.5);
 	animation: dk-fade-in .2s ease;
 }
 .dk-drawer__paper {
-	position: absolute;
-	top: 0;
-	bottom: 0;
+	position: relative;
 	display: flex;
 	flex-direction: column;
-	width: 460px;
-	max-width: 100%;
+	width: min(1000px, 100%);
+	max-height: 92vh;
 	overflow-y: auto;
 	background: #fff;
-	box-shadow: 0 12px 32px rgba(24,24,27,.12), 0 2px 8px rgba(24,24,27,.06);
+	border-radius: 16px;
+	box-shadow: 0 24px 60px rgba(24,24,27,.28), 0 4px 14px rgba(24,24,27,.12);
 	outline: none;
+	animation: dk-pop-in .2s cubic-bezier(.22,1,.36,1);
 }
-.dk-drawer__paper--right {
-	right: 0;
-	animation: dk-slide-in-right .24s ease;
-}
-.dk-drawer__paper--left {
-	left: 0;
-	animation: dk-slide-in-left .24s ease;
-}
+/* Anchor variants are now no-ops — every drawer is a centered popout. */
+.dk-drawer__paper--right,
+.dk-drawer__paper--left {}
 @keyframes dk-fade-in {
 	from { opacity: 0; }
 	to { opacity: 1; }
 }
-@keyframes dk-slide-in-right {
-	from { transform: translateX(100%); }
-	to { transform: translateX(0); }
-}
-@keyframes dk-slide-in-left {
-	from { transform: translateX(-100%); }
-	to { transform: translateX(0); }
+@keyframes dk-pop-in {
+	from { opacity: 0; transform: translateY(8px) scale(.985); }
+	to { opacity: 1; transform: none; }
 }
 
 /* Modal — centered dialog popup */

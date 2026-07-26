@@ -17,7 +17,8 @@ DineKit turns WordPress into a complete, commission-free restaurant platform —
 **Menus & allergens**
 
 * **Menu builder** — menus (Lunch, Dinner, Drinks…), sections and dishes with photos, badges and multiple prices; six templates; drag-and-drop ordering with autosave.
-* **UK-14 allergens built in** — the 14 regulated allergens pre-loaded with icons, tooltips and a printable matrix (Natasha's Law friendly), plus your own dietary labels.
+* **UK-14 allergens built in** — the 14 regulated allergens pre-loaded with icons, tooltips, sub-sources (e.g. "cereals containing gluten → wheat, barley") and a printable matrix (Natasha's Law friendly), plus your own custom allergens and dietary labels.
+* **Costs, margins & calories** — record a dish's cost to make and see its gross-profit margin (kept private), and show calories on the public menu for UK calorie-labelling.
 * **QR table cards** and A4 posters that open your live menu on a phone, and **Menu / MenuItem / LocalBusiness schema.org** output for SEO.
 * **Opening hours** with holiday overrides and a live "open now" status.
 
@@ -25,6 +26,7 @@ DineKit turns WordPress into a complete, commission-free restaurant platform —
 
 * **Takeaway, collection and delivery** ordering with a diner-facing menu, dish customizations (removable ingredients, choose-your-options with prices) and an accept / hold / refund workflow that only captures payment when you accept.
 * **Contactless QR "order at the table"** so diners order from their phone — straight onto that table's tab, or pay-upfront.
+* **Kitchen Display (KDS)** — a live New → Preparing → Ready board for the kitchen, with per-ticket timers, item lists and notes, one-tap advance and a full-screen mode for any tablet or kitchen TV.
 * **Kitchen & bar ticket routing** — printable tickets per station, or emailed directly to a kitchen printer on accept.
 * **86 a dish in one tap** — sold-out dishes stay on the menu (SEO-safe) marked unavailable and can't be ordered anywhere.
 * **Branded, editable email templates** for order and booking notifications, with a live preview.
@@ -51,6 +53,8 @@ DineKit turns WordPress into a complete, commission-free restaurant platform —
 * **Staff logins** with a role-to-permission matrix and an activity/audit log, plus review-request emails to win diners back.
 * **Reports** — covers, revenue, best-selling dishes and no-show rate, with CSV export.
 * **Direct support from your dashboard** — message the DineKit team without leaving WordPress (optional; see External Services).
+
+**Install it as an app** on any phone or tablet — the staff app runs from its own home-screen icon, keeps loading through a dropped connection, and **many tablets stay in sync automatically** (an order or booking made on one appears on the others within seconds).
 
 No WooCommerce required and no page builder needed. The menu, allergens and QR codes work with no external accounts; card payments use your own Stripe account (see External Services below). Works with any theme, on any host.
 
@@ -125,6 +129,21 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 10. The drag-and-drop floor plan — zones, joinable tables and covers, driving live booking availability.
 
 == Changelog ==
+
+= 1.2.11 =
+* New: Install DineKit as an app on any phone or tablet — it runs from a home-screen icon, separate from wp-admin, keeps loading through a dropped connection, and many tablets stay in sync automatically (an order or booking made on one appears on the others within seconds).
+* New: Kitchen Display now handles coursing properly — each round you fire is its own ticket that moves through New → Preparing → Ready on its own, so firing mains later never disturbs the starters that are already cooking, and only the new items show.
+* New: Dish costs, margins & calories — record a dish's cost to see its gross-profit margin (kept private), and show calories on the public menu for UK calorie labelling.
+* New: Allergen sub-sources (Natasha's Law) — pick "cereals containing gluten" then choose wheat/barley/rye…, or "tree nuts" → almond/hazelnut/walnut…; the menu then reads "cereals containing gluten (wheat, barley)". Add your own custom allergens too; the 14 legal allergens stay protected.
+* New: Partial refunds — refund a whole order or tick just the items that were sent back; card via Stripe, cash recorded.
+* New: Set your own service charge % right on the bill (saved as your default), and when you split, each person tips their own share.
+* New: Set-menu events — edit a guest's pre-order (name, course, company) after they've submitted.
+* Improved: One booking panel — click a reservation to mark arrived/seated, no-show or completed, move the table/time, add notes or cancel, all in one place; manage several bookings at once; walk-ins auto-seat at the best free table.
+* Improved: Mark a dish unavailable (86) from the dish editor, prices show your currency symbol as you type, the dish editor is grouped into tidy collapsible sections, and editors open as large centered pop-ups.
+* Fixed: taking a Card, Voucher or Comp payment no longer opens a stray print tab or crashes the till.
+* Fixed: orders fired from Take Order now appear on the Kitchen Display, and a table's bill stays open and payable at the till until you actually settle it (the kitchen marking it done no longer closes it).
+* Fixed: the event pre-order link no longer auto-picks a dish — each guest actively chooses per course.
+* Fixed: walk-ins respect your covers-per-hour cap, staff are archived (restorable) instead of hard-deleted, and various confirmations are now proper on-screen dialogs.
 
 = 1.2.10 =
 * New: Kitchen Display. A live kitchen board that shows incoming orders as they move through New → Preparing → Ready, with a timer on every ticket, clear item lists and kitchen notes, and one tap to move an order along. It auto-refreshes and has a full-screen mode, so you can run it on any tablet or a kitchen TV.

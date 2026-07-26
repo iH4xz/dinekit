@@ -329,7 +329,7 @@ function update_order( $request ) {
 
 	// Rejecting or cancelling releases/refunds the payment — a sensitive action
 	// gated by its own permission (admins always pass).
-	if ( 'reject' === $action || 'cancelled' === (string) $request->get_param( 'status' ) ) {
+	if ( 'reject' === $action || 'refund' === $action || 'cancelled' === (string) $request->get_param( 'status' ) ) {
 		require_once DINEKIT_DIR . 'includes/access.php';
 		if ( ! \DineKit\Access\can( 'refunds' ) ) {
 			return new \WP_Error( 'dinekit_no_refund', __( 'You do not have permission to void or refund orders.', 'dinekit' ), array( 'status' => 403 ) );
@@ -355,6 +355,29 @@ function update_order( $request ) {
 		Ordering\Emails\cancelled( $id );
 		/* translators: %d: order number. */
 		\DineKit\Activity\log( 'refund', sprintf( __( 'Rejected & refunded order #%d', 'dinekit' ), $num ) );
+	} elseif ( 'refund' === $action ) {
+		// Refund a served/completed order (e.g. a post-meal issue) without
+		// cancelling it. A `lines` list refunds just those items (partial);
+		// otherwise the whole order is refunded.
+		$lines_in = $request->get_param( 'lines' );
+		if ( is_array( $lines_in ) && ! empty( $lines_in ) ) {
+			$amount = Ordering\refund_lines( $id, array_map( 'intval', $lines_in ) );
+			if ( $amount > 0 ) {
+				/* translators: 1: amount, 2: order number. */
+				\DineKit\Activity\log( 'refund', sprintf( __( 'Partially refunded %1$s on order #%2$d', 'dinekit' ), number_format( $amount, 2 ), $num ) );
+			}
+		} else {
+			// Releases an uncaptured hold or refunds a captured payment.
+			Ordering\release_or_refund( $id );
+			// Cash / non-Stripe payment has nothing to call an API for — record the
+			// manual refund so the order + books reflect it.
+			if ( '' === (string) get_post_meta( $id, 'dinekit_order_pi', true ) && 'paid' === (string) get_post_meta( $id, 'dinekit_order_payment', true ) ) {
+				update_post_meta( $id, 'dinekit_order_payment', 'refunded' );
+			}
+			Ordering\log_event( $id, __( 'Refunded', 'dinekit' ) );
+			/* translators: %d: order number. */
+			\DineKit\Activity\log( 'refund', sprintf( __( 'Refunded order #%d', 'dinekit' ), $num ) );
+		}
 	} elseif ( 'resend' === $action ) {
 		require_once DINEKIT_DIR . 'includes/ordering/emails.php';
 		$sent = Ordering\Emails\resend_confirmation( $id );
@@ -370,21 +393,63 @@ function update_order( $request ) {
 		$items = is_array( $items ) ? $items : array();
 		$new   = 0;
 		$now   = current_time( 'c' );
+		// A unique id for THIS round — never the timestamp alone, which only has
+		// second precision, so two rounds fired in the same second would otherwise
+		// merge into one Kitchen Display ticket.
+		$round_id = uniqid( 'r', true );
 		foreach ( $items as &$li ) {
 			if ( empty( $li['fired'] ) ) {
 				$li['fired']   = true;
 				$li['firedAt'] = $now;
+				$li['firedId'] = $round_id; // groups this round's lines on the KDS.
+				$li['kstage']  = 'new'; // a fresh round starts in the kitchen's "New" column.
 				++$new;
 			}
 		}
 		unset( $li );
 		if ( $new > 0 ) {
 			update_post_meta( $id, 'dinekit_order_items', wp_json_encode( $items ) );
-			if ( 'open' === (string) get_post_meta( $id, 'dinekit_order_status', true ) ) {
-				update_post_meta( $id, 'dinekit_order_status', 'sent' );
-			}
+			// There's a new active round, so keep the tab on the board. Each round's
+			// own kstage (not the order status) decides its column, so an earlier
+			// round stays where it is (e.g. still "Ready") when a new one fires.
+			update_post_meta( $id, 'dinekit_order_status', 'sent' );
 			/* translators: %d: number of items fired. */
 			Ordering\log_event( $id, sprintf( _n( 'Fired %d item to the kitchen', 'Fired %d items to the kitchen', $new, 'dinekit' ), $new ) );
+		}
+	} elseif ( 'kitchen_stage' === $action ) {
+		// Advance ONE fired round (identified by its firedAt) through the kitchen —
+		// new → preparing → ready → done — independently of the tab's other rounds.
+		$round = (string) $request->get_param( 'round' );
+		$stage = sanitize_key( (string) $request->get_param( 'stage' ) );
+		if ( ! in_array( $stage, array( 'new', 'preparing', 'ready', 'done' ), true ) ) {
+			$stage = 'new';
+		}
+		$items = json_decode( (string) get_post_meta( $id, 'dinekit_order_items', true ), true );
+		$items = is_array( $items ) ? $items : array();
+		foreach ( $items as &$li ) {
+			// Match by the unique round id; fall back to firedAt for pre-existing
+			// rounds fired before round ids were stored.
+			$lid = isset( $li['firedId'] ) ? (string) $li['firedId'] : (string) ( isset( $li['firedAt'] ) ? $li['firedAt'] : '' );
+			if ( ! empty( $li['fired'] ) && $lid === $round && ( isset( $li['kstage'] ) ? $li['kstage'] : 'new' ) !== 'done' ) {
+				$li['kstage'] = $stage;
+			}
+		}
+		unset( $li );
+		update_post_meta( $id, 'dinekit_order_items', wp_json_encode( $items ) );
+		// Tab status for the till: it drops to 'served'/'completed' only once NO
+		// round is still cooking; otherwise it stays on the board.
+		$active = false;
+		foreach ( $items as $li ) {
+			if ( ! empty( $li['fired'] ) && ( isset( $li['kstage'] ) ? $li['kstage'] : 'new' ) !== 'done' ) {
+				$active = true;
+				break;
+			}
+		}
+		if ( $active ) {
+			update_post_meta( $id, 'dinekit_order_status', 'sent' );
+		} else {
+			$chan = (string) get_post_meta( $id, 'dinekit_order_channel', true );
+			update_post_meta( $id, 'dinekit_order_status', 'dine_in' === $chan ? 'served' : 'completed' );
 		}
 	} elseif ( 'void_line' === $action ) {
 		$idx   = (int) $request->get_param( 'line' );
@@ -428,6 +493,10 @@ function update_order( $request ) {
 		}
 		$amt = round( (float) $request->get_param( 'amount' ), 2 );
 		Ordering\add_tender( $id, $ttype, $amt );
+		require_once DINEKIT_DIR . 'includes/settings.php';
+		$sym = isset( \DineKit\Settings\get()['currency'] ) ? \DineKit\Settings\get()['currency'] : '£';
+		/* translators: 1: order number, 2: currency symbol, 3: amount, 4: tender type. */
+		\DineKit\Activity\log( 'order', sprintf( __( 'Order #%1$d — %2$s%3$s taken (%4$s)', 'dinekit' ), $num, $sym, number_format_i18n( $amt, 2 ), $ttype ) );
 	} elseif ( 'pay_link' === $action ) {
 		require_once DINEKIT_DIR . 'includes/pay.php';
 		\DineKit\Pay\ensure_token( $id );
@@ -480,6 +549,26 @@ function update_order( $request ) {
 		update_post_meta( $id, 'dinekit_order_status', $status );
 		/* translators: %s: order status label. */
 		Ordering\log_event( $id, sprintf( __( 'Status changed to %s', 'dinekit' ), $statuses[ $status ] ) );
+		// When the kitchen finishes a round (Ready → Done → served/completed), mark
+		// the lines it just made as done. That way, if a LATER round is fired for
+		// the same tab, the Kitchen Display shows only the NEW items — not the ones
+		// it already cooked.
+		if ( in_array( $status, array( 'served', 'completed' ), true ) ) {
+			$kitems = json_decode( (string) get_post_meta( $id, 'dinekit_order_items', true ), true );
+			if ( is_array( $kitems ) ) {
+				$touched = false;
+				foreach ( $kitems as &$kl ) {
+					if ( ! empty( $kl['fired'] ) && ( isset( $kl['kstage'] ) ? $kl['kstage'] : 'new' ) !== 'done' ) {
+						$kl['kstage'] = 'done';
+						$touched      = true;
+					}
+				}
+				unset( $kl );
+				if ( $touched ) {
+					update_post_meta( $id, 'dinekit_order_items', wp_json_encode( $kitems ) );
+				}
+			}
+		}
 		// Cancelling (incl. a manager overriding an already-accepted order) must
 		// refund/release the payment — not just via the Reject action.
 		if ( 'cancelled' === $status && 'reject' !== $action ) {

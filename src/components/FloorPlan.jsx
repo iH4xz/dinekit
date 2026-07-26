@@ -87,6 +87,7 @@ export default function FloorPlan() {
 	// Table-delete dialog + shared booking-reassignment map (bookingId -> tableId; 0 = keep).
 	const [ tableDel, setTableDel ] = useState( null ); // { id, name, upcoming, joins, loading, error } | null
 	const [ tableDelBusy, setTableDelBusy ] = useState( false );
+	const [ zoneMove, setZoneMove ] = useState( null ); // { id, areaId, areaName, names } — pending zone change that breaks a join
 	const [ reassign, setReassign ] = useState( {} );
 	// History tab (voided zones + tables).
 	const [ history, setHistory ] = useState( null ); // { zones, tables } | null
@@ -335,21 +336,24 @@ export default function FloorPlan() {
 		const moveLocal = ( extra = {} ) =>
 			setTables( ( t ) => t.map( ( x ) => ( x.id === id ? { ...x, areaId, area: areaName, ...extra } : x ) ) );
 		if ( joins.length ) {
-			// eslint-disable-next-line no-alert
-			const okMove = window.confirm(
-				( byId[ id ]?.name || 'This table' ) + ' is joined in ' + joins.map( ( c ) => c.name ).join( ', ' ) +
-					'. Moving it to another zone will break that join. Continue?'
-			);
-			if ( ! okMove ) {
-				return;
-			}
-			detachLocally( id );
-			moveLocal();
-			saveLater( 'table-' + id, () => api.updateTable( id, { area: areaId, breakJoins: true } ) );
+			// Ask before breaking the join — resolved via the ConfirmDialog below.
+			setZoneMove( { id, areaId, areaName, names: joins.map( ( c ) => c.name ).join( ', ' ) } );
 			return;
 		}
 		moveLocal();
 		saveLater( 'table-' + id, () => api.updateTable( id, { area: areaId } ) );
+	};
+
+	// Proceed with a zone change that breaks a join (confirmed via the dialog).
+	const confirmZoneMove = () => {
+		const mv = zoneMove;
+		setZoneMove( null );
+		if ( ! mv ) {
+			return;
+		}
+		detachLocally( mv.id );
+		setTables( ( t ) => t.map( ( x ) => ( x.id === mv.id ? { ...x, areaId: mv.areaId, area: mv.areaName } : x ) ) );
+		saveLater( 'table-' + mv.id, () => api.updateTable( mv.id, { area: mv.areaId, breakJoins: true } ) );
 	};
 
 	/* ---- join / combos ---- */
@@ -921,6 +925,19 @@ export default function FloorPlan() {
 						</Stack>
 					) : null
 				}
+			/>
+			<ConfirmDialog
+				open={ !! zoneMove }
+				destructive={ false }
+				title="Break this join?"
+				message={
+					zoneMove
+						? `${ byId[ zoneMove.id ]?.name || 'This table' } is joined in ${ zoneMove.names }. Moving it to another zone will break that join.`
+						: ''
+				}
+				confirmLabel="Move &amp; break join"
+				onConfirm={ confirmZoneMove }
+				onCancel={ () => setZoneMove( null ) }
 			/>
 		</Page>
 	);

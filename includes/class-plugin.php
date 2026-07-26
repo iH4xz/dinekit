@@ -126,6 +126,12 @@ final class Plugin {
 		if ( $this->load( 'notifications.php' ) ) {
 			Notifications\init();
 		}
+		if ( $this->load( 'pwa.php' ) ) {
+			PWA\init();
+		}
+		if ( $this->load( 'sync.php' ) ) {
+			Sync\init();
+		}
 		if ( is_admin() ) {
 			if ( $this->load( 'admin/admin.php' ) ) {
 				Admin\init();

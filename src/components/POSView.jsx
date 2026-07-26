@@ -13,13 +13,19 @@ import QrCode2Icon from '@mui/icons-material/QrCode2';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import { tokens } from '../theme';
 import { api } from '../api/client';
+import { useSyncRevision } from '../lib/useSync';
 import { printDoc, esc } from '../lib/print';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
 
 const COURSES = [ '', 'Drinks', 'Starters', 'Mains', 'Desserts' ];
-const OPEN_TAB = [ 'open', 'sent', 'preparing', 'served', 'bill' ];
+// A dine-in tab stays open (and payable) in Take Order for ANY status except the
+// terminal ones — so a status change made on the Orders board or another tablet
+// (e.g. the kitchen marking it 'ready') never strands the tab or blocks payment.
+// Take Order and Orders are two live windows onto the same order.
+const TAB_CLOSED = [ 'completed', 'cancelled' ];
+const isOpenTab = ( o ) => o && 'dine_in' === o.channel && ! TAB_CLOSED.includes( o.status ) && ! o.archived;
 
 export default function POSView() {
 	const [ loading, setLoading ] = useState( true );
@@ -35,6 +41,8 @@ export default function POSView() {
 	const [ tableQr, setTableQr ] = useState( false ); // table-QR generator
 	const [ moveOpen, setMoveOpen ] = useState( false ); // transfer-table picker
 	const [ busy, setBusy ] = useState( false );
+	const [ justFired, setJustFired ] = useState( false ); // brief "sent to kitchen ✓" flash
+	const [ servicePct, setServicePct ] = useState( 12.5 ); // venue default service charge %, editable at settle
 	const caps = ( typeof window !== 'undefined' && window.DINEKIT && window.DINEKIT.caps ) || {};
 
 	useEffect( () => {
@@ -46,12 +54,37 @@ export default function POSView() {
 		] ).then( ( [ f, m, o, s ] ) => {
 			setFloor( f || { tables: [], areas: [] } );
 			setSections( ( m && m.sections ) || [] );
-			setOrders( ( o || [] ).filter( ( x ) => 'dine_in' === x.channel && OPEN_TAB.includes( x.status ) && ! x.archived ) );
+			setOrders( ( o || [] ).filter( isOpenTab ) );
 			if ( s.currency ) {
 				setCur( { symbol: s.currency || '£', position: s.currencyPosition || 'before' } );
 			}
+			if ( s.servicePct != null ) {
+				setServicePct( Number( s.servicePct ) || 0 );
+			}
 		} ).finally( () => setLoading( false ) );
 	}, [] );
+
+	// Live-sync: when orders change on another tablet or the Orders board, refresh
+	// the tab list AND the open pad so Take Order and Orders stay one dynamic view
+	// of the same orders. (Baseline established on mount; this only fires on change.)
+	const ordersRev = useSyncRevision( 'orders' );
+	useEffect( () => {
+		if ( loading ) {
+			return;
+		}
+		api.getOrders().then( ( all ) => {
+			const list = ( all || [] ).filter( isOpenTab );
+			setOrders( list );
+			setActive( ( a ) => {
+				if ( ! a || ! a.order ) {
+					return a;
+				}
+				const fresh = ( all || [] ).find( ( o ) => o.id === a.order.id );
+				return fresh ? { ...a, order: fresh } : a;
+			} );
+		} ).catch( () => {} );
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ ordersRev ] );
 
 	const money = ( n ) => {
 		const v = Number( n || 0 ).toFixed( 2 );
@@ -68,7 +101,7 @@ export default function POSView() {
 		setActive( ( a ) => ( a ? { ...a, order } : a ) );
 		setOrders( ( os ) => {
 			const without = os.filter( ( o ) => o.id !== order.id );
-			return 'dine_in' === order.channel && OPEN_TAB.includes( order.status ) ? [ ...without, order ] : without;
+			return isOpenTab( order ) ? [ ...without, order ] : without;
 		} );
 	};
 
@@ -131,6 +164,8 @@ export default function POSView() {
 		setBusy( true );
 		try {
 			syncOrder( await api.updateOrder( active.order.id, { action: 'fire' } ) );
+			setJustFired( true );
+			window.setTimeout( () => setJustFired( false ), 2500 );
 		} finally {
 			setBusy( false );
 		}
@@ -314,8 +349,9 @@ export default function POSView() {
 								startIcon={ <LocalFireDepartmentIcon /> }
 								disabled={ busy || unfired === 0 }
 								onClick={ fire }
+								sx={ justFired ? { bgcolor: tokens.green, '&:hover': { bgcolor: tokens.green } } : undefined }
 							>
-								{ unfired > 0 ? `Fire ${ unfired } to kitchen` : 'Nothing to fire' }
+								{ justFired ? 'Sent to kitchen ✓' : ( unfired > 0 ? `Fire ${ unfired } to kitchen` : 'Nothing to fire' ) }
 							</Button>
 							<Button
 								variant="outlined"
@@ -362,6 +398,8 @@ export default function POSView() {
 					onUpdate={ syncOrder }
 					onClose={ () => setBill( false ) }
 					onSettled={ () => { setBill( false ); back(); } }
+					servicePct={ servicePct }
+					onServicePct={ ( pct ) => { setServicePct( pct ); api.saveOrderSettings( { service_pct: pct } ).catch( () => {} ); } }
 				/>
 			) }
 		</Page>
@@ -468,7 +506,7 @@ const round2 = ( n ) => Math.round( n * 100 ) / 100;
 
 // Settle a tab: service charge + tip, then take payment (cash w/ change, or
 // card/voucher/comp settling the balance). Auto-closes when fully paid.
-function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled } ) {
+function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled, servicePct = 12.5, onServicePct } ) {
 	const [ cash, setCash ] = useState( '' );
 	const [ tipInput, setTipInput ] = useState( order.tip && Number( order.tip ) ? String( order.tip ) : '' );
 	const [ shares, setShares ] = useState( 1 );
@@ -508,7 +546,14 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled } ) 
 		setBusy( true );
 		try { onUpdate( await api.updateOrder( order.id, { action: 'set_charges', ...patch } ) ); } finally { setBusy( false ); }
 	};
-	const toggleService = () => setCharges( { service: svcApplied ? 0 : round2( food * 0.125 ) } );
+	const toggleService = () => setCharges( { service: svcApplied ? 0 : round2( food * ( Number( servicePct ) || 0 ) / 100 ) } );
+	// Change the service % on the fly; save it back as the venue default, and
+	// re-apply to this bill if service is already on.
+	const changeServicePct = ( pct ) => {
+		const p = Math.max( 0, Math.min( 100, Number( pct ) || 0 ) );
+		if ( onServicePct ) { onServicePct( p ); }
+		if ( svcApplied ) { setCharges( { service: round2( food * p / 100 ) } ); }
+	};
 
 	const tender = async ( type, amount ) => {
 		if ( amount <= 0 ) {
@@ -519,7 +564,11 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled } ) 
 			const updated = await api.updateOrder( order.id, { action: 'tender', tenderType: type, amount } );
 			onUpdate( updated );
 			if ( 'completed' === updated.status ) {
-				printReceipt( updated, 'cash' === type ? change : 0 );
+				// Settled in full → close the tab cleanly. We deliberately do NOT
+				// auto-open a print window: popping a new browser tab to print on
+				// every card/voucher/comp settle is jarring and reads as a crash.
+				// Cash change is shown inline as it's counted, and staff can print
+				// on demand with the "Print receipt" button.
 				onSettled();
 			} else {
 				setCash( '' );
@@ -642,6 +691,7 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled } ) 
 		if ( Number( o.discount ) ) extra.push( `<tr><td>Discount</td><td class="r">−${ money( o.discount ) }</td></tr>` );
 		const tenders = ( o.tenders || [] ).map( ( t ) => `<tr><td>${ esc( t.type ) }</td><td class="r">${ money( t.amount ) }</td></tr>` ).join( '' );
 		printDoc(
+			'Receipt #' + o.number,
 			'<style>body{font-family:monospace;font-size:12px;max-width:300px;margin:0 auto}h2{text-align:center;margin:4px 0}table{width:100%;border-collapse:collapse}td{padding:1px 0}.r{text-align:right}hr{border:none;border-top:1px dashed #000;margin:6px 0}.tot{font-weight:700;font-size:14px}</style>' +
 			`<h2>Receipt</h2><div style="text-align:center">Order #${ o.number }${ o.table ? ' · ' + esc( o.table ) : '' }</div><hr>` +
 			`<table>${ rows }</table><hr><table>${ extra.join( '' ) }<tr class="tot"><td>Total</td><td class="r">${ money( o.grandTotal ) }</td></tr></table>` +
@@ -664,7 +714,7 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled } ) 
 				{ /* Totals */ }
 				<Box sx={ { border: `1px solid ${ tokens.border }`, borderRadius: '10px', p: 1.5, mb: 2 } }>
 					<Row label="Items" value={ money( food ) } />
-					{ Number( order.service ) > 0 && <Row label="Service (12.5%)" value={ money( order.service ) } /> }
+					{ Number( order.service ) > 0 && <Row label={ `Service (${ servicePct }%)` } value={ money( order.service ) } /> }
 					{ Number( order.tip ) > 0 && <Row label="Tip" value={ money( order.tip ) } /> }
 					<Box sx={ { borderTop: `1px solid ${ tokens.soft }`, mt: 0.75, pt: 0.75 } }>
 						<Row label="Total" value={ money( grand ) } bold />
@@ -676,13 +726,49 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled } ) 
 				{ /* Charges */ }
 				<Stack direction="row" spacing={ 1 } sx={ { mb: 2 } } flexWrap="wrap" useFlexGap>
 					<Chip
-						label={ svcApplied ? 'Service 12.5% ✓' : 'Add service 12.5%' }
+						label={ svcApplied ? `Service ${ servicePct }% ✓` : `Add service ${ servicePct }%` }
 						onClick={ busy ? undefined : toggleService }
 						sx={ { fontWeight: 600, cursor: 'pointer', bgcolor: svcApplied ? tokens.accentSoft : tokens.soft, color: svcApplied ? tokens.accentDark : tokens.ink2 } }
 					/>
+					<Stack direction="row" alignItems="center" spacing={ 0.25 } sx={ { border: `1px solid ${ tokens.border2 }`, borderRadius: '9px', px: 0.75 } }>
+						<Box
+							component="input"
+							type="number"
+							inputMode="decimal"
+							aria-label="Service charge percent"
+							defaultValue={ servicePct }
+							key={ servicePct }
+							onBlur={ ( e ) => changeServicePct( e.target.value ) }
+							onKeyDown={ ( e ) => { if ( 'Enter' === e.key ) { changeServicePct( e.target.value ); } } }
+							sx={ { width: 44, py: 0.5, border: 'none', fontFamily: 'inherit', fontSize: 13.5, textAlign: 'right', outline: 'none', bgcolor: 'transparent' } }
+						/>
+						<Typography sx={ { fontSize: 13, color: tokens.muted } }>% svc</Typography>
+					</Stack>
 					{ [ 5, 10, 12.5 ].map( ( pct ) => (
-						<Chip key={ pct } label={ `Tip ${ pct }%` } onClick={ busy ? undefined : () => { const t = round2( food * pct / 100 ); setTipInput( String( t ) ); setCharges( { tip: t } ); } } sx={ { cursor: 'pointer', bgcolor: tokens.soft, color: tokens.ink2 } } />
+						<Chip key={ pct } label={ `Tip ${ pct }%` } onClick={ busy ? undefined : () => {
+							// When splitting, tip is a % of THIS payer's share and adds to
+							// the running tip — so each person tips their own split, even
+							// with a service charge on. Otherwise it's a % of the whole bill.
+							const add = round2( ( shares > 1 ? charge : food ) * pct / 100 );
+							const nt = shares > 1 ? round2( ( Number( order.tip ) || 0 ) + add ) : add;
+							setTipInput( String( nt ) );
+							setCharges( { tip: nt } );
+						} } sx={ { cursor: 'pointer', bgcolor: tokens.soft, color: tokens.ink2 } } />
 					) ) }
+					<Box
+						component="input"
+						type="number"
+						inputMode="decimal"
+						placeholder="Custom tip"
+						value={ tipInput }
+						onChange={ ( e ) => setTipInput( e.target.value ) }
+						onBlur={ () => setCharges( { tip: round2( Number( tipInput ) || 0 ) } ) }
+						onKeyDown={ ( e ) => { if ( 'Enter' === e.key ) { setCharges( { tip: round2( Number( tipInput ) || 0 ) } ); } } }
+						sx={ { width: 100, px: 1, py: 0.5, border: `1px solid ${ tokens.border2 }`, borderRadius: '9px', fontFamily: 'inherit', fontSize: 13.5, boxShadow: 'none', outline: 'none' } }
+					/>
+					{ Number( order.tip ) > 0 && (
+						<Chip label="Clear tip" onClick={ busy ? undefined : () => { setTipInput( '' ); setCharges( { tip: 0 } ); } } sx={ { cursor: 'pointer', bgcolor: tokens.soft, color: tokens.muted } } />
+					) }
 				</Stack>
 
 				{ /* Loyalty member */ }

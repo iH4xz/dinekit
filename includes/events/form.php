@@ -71,6 +71,7 @@ function render( $token, $group = '' ) {
 			'nonce'   => wp_create_nonce( 'wp_rest' ),
 			'i18n'    => array(
 				'needName'     => __( 'Please enter your name.', 'dinekit' ),
+				'needChoice'   => __( 'Please choose a dish for each course.', 'dinekit' ),
 				'submitted'    => __( 'Your choices are in', 'dinekit' ),
 				'genericError' => __( 'Sorry, something went wrong. Please try again.', 'dinekit' ),
 				'networkError' => __( 'Network error — please try again.', 'dinekit' ),
@@ -118,9 +119,9 @@ function render( $token, $group = '' ) {
 				<?php foreach ( $courses as $course ) : ?>
 					<fieldset class="dinekit-event__course" data-section="<?php echo esc_attr( (string) $course['id'] ); ?>">
 						<legend><?php echo esc_html( $course['name'] ); ?></legend>
-						<?php foreach ( $course['items'] as $i => $item ) : ?>
+						<?php foreach ( $course['items'] as $item ) : ?>
 							<label class="dinekit-event__opt">
-								<input type="radio" name="course_<?php echo esc_attr( (string) $course['id'] ); ?>" value="<?php echo esc_attr( (string) $item['id'] ); ?>"<?php echo 0 === $i ? ' checked' : ''; ?>>
+								<input type="radio" name="course_<?php echo esc_attr( (string) $course['id'] ); ?>" value="<?php echo esc_attr( (string) $item['id'] ); ?>" required>
 								<span><?php echo esc_html( $item['title'] ); ?></span>
 							</label>
 						<?php endforeach; ?>

@@ -21,6 +21,7 @@ import {
 	Modal,
 	Menu,
 	ListItemIcon,
+	Checkbox,
 } from '../ui';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -48,6 +49,7 @@ import { printDoc, esc } from '../lib/print';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+import ConfirmDialog from './ui/ConfirmDialog';
 import EmptyState from './ui/EmptyState';
 import { ListSkeleton } from './ui/Skeletons';
 import BookingSettingsView from './BookingSettingsView';
@@ -63,6 +65,11 @@ export default function BookingsView() {
 	const [ popupAdd, setPopupAdd ] = useState( false ); // popup add form (timeline view)
 	const [ settingsOpen, setSettingsOpen ] = useState( false );
 	const [ view, setView ] = useState( 'list' ); // 'list' (diary) | 'timeline' (full-width service view)
+	const [ listScope, setListScope ] = useState( 'upcoming' ); // 'upcoming' (what's left today) | 'all'
+	const [ selectMode, setSelectMode ] = useState( false ); // bulk-manage toggle
+	const [ selected, setSelected ] = useState( () => new Set() ); // selected booking ids
+	const [ bulkConfirm, setBulkConfirm ] = useState( false );
+	const [ walkInConfirm, setWalkInConfirm ] = useState( null ); // holds the pending walk-in time when over cap
 	const [ floor, setFloor ] = useState( { areas: [], tables: [], combos: [] } );
 	const [ svc, setSvc ] = useState( { openMin: 720, closeMin: 1320 } );
 	const [ turnMin, setTurnMin ] = useState( 120 );
@@ -134,6 +141,38 @@ export default function BookingsView() {
 		await api.deleteBooking( id );
 		setBookings( ( bs ) => bs.filter( ( b ) => b.id !== id ) );
 		setDetail( ( d ) => ( d && d.id === id ? null : d ) );
+	};
+
+	// Bulk-manage: multi-select several bookings then cancel & archive them in one
+	// go (e.g. clearing a stale wave of no-shows). Cancelling honours deposits via
+	// the server response, same as a single cancel.
+	const toggleSelected = ( id ) => {
+		setSelected( ( prev ) => {
+			const next = new Set( prev );
+			if ( next.has( id ) ) {
+				next.delete( id );
+			} else {
+				next.add( id );
+			}
+			return next;
+		} );
+	};
+	const exitSelect = () => {
+		setSelectMode( false );
+		setSelected( new Set() );
+	};
+	const bulkCancel = async () => {
+		const ids = Array.from( selected );
+		setBulkConfirm( false );
+		for ( const id of ids ) {
+			patchLocal( id, { status: 'cancelled' } );
+			// eslint-disable-next-line no-await-in-loop
+			const b = await api.updateBooking( id, { status: 'cancelled' } );
+			if ( b ) {
+				patchLocal( id, b );
+			}
+		}
+		exitSelect();
 	};
 
 	const printDay = () => {
@@ -221,6 +260,14 @@ export default function BookingsView() {
 		setAdding( false );
 		setPopupAdd( false );
 		setPrefill( null );
+		// Always tell the user which table it landed on. When a specific table was
+		// full, the engine best-fit-assigns another — showing the real table makes
+		// that visible instead of bookings mysteriously "piling onto one table".
+		if ( booking.table ) {
+			setReviewMsg( `Booked · ${ booking.table }` );
+		} else if ( [ 'provisional', 'penciled', 'waitlist' ].includes( booking.status ) ) {
+			setReviewMsg( 'Penciled in — no table held yet' );
+		}
 		if ( booking.date === date ) {
 			setBookings( ( bs ) =>
 				[ ...bs, booking ].sort( ( a, b ) => ( a.time > b.time ? 1 : -1 ) )
@@ -232,13 +279,41 @@ export default function BookingsView() {
 
 	// Timeline: click an empty table cell → open the booking form as a popup with
 	// the time + table pre-selected (stays on the timeline, no bounce to the list).
+	// "Now" rounded to the nearest 15 min, clamped to the service window.
+	const nowSlot = () => {
+		const now = new Date();
+		let min = now.getHours() * 60 + now.getMinutes();
+		min = Math.max( svc.openMin, Math.min( svc.closeMin, Math.round( min / 15 ) * 15 ) );
+		const p2 = ( n ) => ( n < 10 ? '0' : '' ) + n;
+		return p2( Math.floor( min / 60 ) ) + ':' + p2( min % 60 );
+	};
+
+	// Clicking a table for a slot: if it's now (this slot or earlier, today) the
+	// guest is here — seat an instant walk-in at that table. A future slot is a
+	// reservation, so open the form to capture a name.
 	const createAt = ( tableId, time ) => {
+		const now = new Date();
+		const hm = ( '0' + now.getHours() ).slice( -2 ) + ':' + ( '0' + now.getMinutes() ).slice( -2 );
+		if ( date === isoDate() && time <= hm ) {
+			seatWalkIn( nowSlot(), tableId );
+			return;
+		}
 		setPrefill( { time, tableId } );
 		setPopupAdd( true );
 	};
 
 	// Click a booking on the timeline → edit it in a popup.
 	const [ editBooking, setEditBooking ] = useState( null );
+	// Change a booking's status straight from the open edit panel (arrived/seated,
+	// no-show, completed…), keeping the panel in sync — no separate list dropdown
+	// or detail-then-edit dance.
+	const editStatus = ( status ) => {
+		if ( ! editBooking ) {
+			return;
+		}
+		setStatus( editBooking.id, status );
+		setEditBooking( ( b ) => ( b ? { ...b, status } : b ) );
+	};
 	const onEdited = ( b ) => {
 		setEditBooking( null );
 		setBookings( ( bs ) => {
@@ -273,14 +348,29 @@ export default function BookingsView() {
 	};
 
 	// Walk-in: an on-the-spot guest, seated immediately with no details required.
+	// Booked from "now" rounded to the nearest 15 min, and auto-seated at the
+	// best-fit free table (smallest that fits) if one's open — falling back to
+	// no-table only when the room's full.
 	const addWalkIn = async () => {
-		const now = new Date();
-		let min = now.getHours() * 60 + now.getMinutes();
-		min = Math.max( svc.openMin, Math.min( svc.closeMin, Math.round( min / 15 ) * 15 ) );
-		const p2 = ( n ) => ( n < 10 ? '0' : '' ) + n;
-		const time = p2( Math.floor( min / 60 ) ) + ':' + p2( min % 60 );
+		const time = nowSlot();
+		// Walk-ins previously bypassed all capacity checks — you could seat well
+		// past your room. Respect the covers-per-hour cap the booking form warns
+		// on: if we're over, ask before seating another party (staff can override).
+		let tableId = 0;
 		try {
-			const booking = await api.createBooking( { date, time, party: 2, name: 'Walk-in', status: 'seated', tableId: 0, comboId: 0 } );
+			const a = await api.getAvailability( { date, time, party: 2 } );
+			tableId = a && a.tables && a.tables.length ? a.tables[ 0 ].id : 0;
+			if ( a && a.overCap ) {
+				setWalkInConfirm( { time, tableId } );
+				return;
+			}
+		} catch ( e ) { /* availability check is best-effort — never block a walk-in on a network hiccup */ }
+		seatWalkIn( time, tableId );
+	};
+
+	const seatWalkIn = async ( time, tableId = 0 ) => {
+		try {
+			const booking = await api.createBooking( { date, time, party: 2, name: 'Walk-in', status: 'seated', tableId, comboId: 0 } );
 			onCreated( booking );
 		} catch ( e ) {
 			setReviewMsg( e.message || 'Could not add the walk-in' );
@@ -294,6 +384,20 @@ export default function BookingsView() {
 			</Page>
 		);
 	}
+
+	// "Upcoming" hides finished/cancelled bookings and (for today) any whose time
+	// has passed, so staff aren't scrolling past the morning to find who's next.
+	const nowHM = ( () => { const d = new Date(); return ( '0' + d.getHours() ).slice( -2 ) + ':' + ( '0' + d.getMinutes() ).slice( -2 ); } )();
+	const isToday = date === isoDate();
+	const shown = 'all' === listScope
+		? bookings
+		: bookings.filter( ( b ) => {
+			if ( [ 'cancelled', 'no_show', 'completed' ].includes( b.status ) ) {
+				return false;
+			}
+			return ! ( isToday && ( b.time || '' ) < nowHM );
+		} );
+	const hiddenCount = bookings.length - shown.length;
 
 	return (
 		<Page width={ view === 'timeline' ? '100%' : 900 }>
@@ -426,6 +530,40 @@ export default function BookingsView() {
 
 			{ view === 'list' && (
 			<>
+			{ bookings.length > 0 && (
+				<Stack direction="row" spacing={ 1 } alignItems="center" sx={ { mb: 2 } } flexWrap="wrap" useFlexGap>
+					<ToggleButtonGroup exclusive size="small" value={ listScope } onChange={ ( e, v ) => v && setListScope( v ) }>
+						<ToggleButton value="upcoming">Upcoming</ToggleButton>
+						<ToggleButton value="all">All</ToggleButton>
+					</ToggleButtonGroup>
+					{ 'upcoming' === listScope && hiddenCount > 0 && (
+						<Typography sx={ { fontSize: 12.5, color: tokens.muted } }>{ hiddenCount } earlier / finished hidden</Typography>
+					) }
+					<Box sx={ { flex: 1 } } />
+					{ selectMode ? (
+						<Button size="small" onClick={ exitSelect } sx={ { color: tokens.muted } }>Done</Button>
+					) : (
+						<Button size="small" variant="outlined" onClick={ () => setSelectMode( true ) }>Select</Button>
+					) }
+				</Stack>
+			) }
+			{ selectMode && selected.size > 0 && (
+				<Stack
+					direction="row"
+					alignItems="center"
+					spacing={ 1.5 }
+					sx={ { mb: 2, p: 1.25, borderRadius: '10px', bgcolor: tokens.redSoft, border: `1px solid ${ tokens.border }` } }
+				>
+					<Typography sx={ { fontSize: 13.5, fontWeight: 600, color: tokens.ink } }>
+						{ selected.size } selected
+					</Typography>
+					<Box sx={ { flex: 1 } } />
+					<Button size="small" onClick={ () => setSelected( new Set() ) } sx={ { color: tokens.muted } }>Clear</Button>
+					<Button size="small" variant="contained" color="error" onClick={ () => setBulkConfirm( true ) }>
+						Cancel &amp; archive
+					</Button>
+				</Stack>
+			) }
 			{ eventsToday.length > 0 && (
 				<Box sx={ { mb: 2 } }>
 					<Typography sx={ { fontSize: 11, fontWeight: 650, letterSpacing: '0.08em', textTransform: 'uppercase', color: tokens.muted, mb: 1, px: 0.5 } }>
@@ -472,11 +610,16 @@ export default function BookingsView() {
 						</Button>
 					}
 				/>
+			) : shown.length === 0 ? (
+				<Box sx={ { textAlign: 'center', py: 4 } }>
+					<Typography sx={ { fontSize: 14, color: tokens.muted, mb: 1.5 } }>Nothing left today — all { bookings.length } { bookings.length === 1 ? 'booking is' : 'bookings are' } earlier or finished.</Typography>
+					<Button size="small" variant="outlined" onClick={ () => setListScope( 'all' ) }>Show all</Button>
+				</Box>
 			) : (
 				<Stack spacing={ 3 }>
 					{ [
-						{ key: 'lunch', label: 'Lunch', rows: bookings.filter( ( b ) => ( b.time || '' ) < '16:00' ) },
-						{ key: 'dinner', label: 'Dinner', rows: bookings.filter( ( b ) => ( b.time || '' ) >= '16:00' ) },
+						{ key: 'lunch', label: 'Lunch', rows: shown.filter( ( b ) => ( b.time || '' ) < '16:00' ) },
+						{ key: 'dinner', label: 'Dinner', rows: shown.filter( ( b ) => ( b.time || '' ) >= '16:00' ) },
 					]
 						.filter( ( g ) => g.rows.length > 0 )
 						.map( ( g ) => {
@@ -501,7 +644,10 @@ export default function BookingsView() {
 												onStatus={ ( s ) => setStatus( b.id, s ) }
 												onDelete={ () => remove( b.id ) }
 												onRequestReview={ () => askReview( b.id ) }
-												onOpen={ () => setDetail( b ) }
+												onOpen={ () => setEditBooking( b ) }
+												selectMode={ selectMode }
+												selected={ selected.has( b.id ) }
+												onToggleSelect={ () => toggleSelected( b.id ) }
 											/>
 										) ) }
 									</Stack>
@@ -519,9 +665,23 @@ export default function BookingsView() {
 				message={ reviewMsg }
 				anchorOrigin={ { vertical: 'bottom', horizontal: 'center' } }
 			/>
-			<Drawer anchor="right" open={ !! detail } onClose={ () => setDetail( null ) } disableEnforceFocus sx={ { zIndex: 100000 } } PaperProps={ { sx: { width: { xs: '100%', sm: 460 } } } }>
-				{ detail && <BookingDetail booking={ detail } onClose={ () => setDetail( null ) } onCancel={ () => setStatus( detail.id, 'cancelled' ) } /> }
-			</Drawer>
+			<ConfirmDialog
+				open={ bulkConfirm }
+				title={ `Cancel & archive ${ selected.size } booking${ selected.size === 1 ? '' : 's' }?` }
+				message="These bookings will be cancelled and removed from the active diary. Any paid deposits are marked for refund."
+				confirmLabel="Cancel &amp; archive"
+				onConfirm={ bulkCancel }
+				onCancel={ () => setBulkConfirm( false ) }
+			/>
+			<ConfirmDialog
+				open={ !! walkInConfirm }
+				destructive={ false }
+				title="Over your covers cap"
+				message="You're over your covers-per-hour cap for this time. Seat this walk-in anyway?"
+				confirmLabel="Seat anyway"
+				onConfirm={ () => { const w = walkInConfirm; setWalkInConfirm( null ); if ( w ) { seatWalkIn( w.time, w.tableId ); } } }
+				onCancel={ () => setWalkInConfirm( null ) }
+			/>
 			<Modal open={ popupAdd } onClose={ () => { setPopupAdd( false ); setPrefill( null ); } }>
 				<NewBooking
 					bare
@@ -540,6 +700,7 @@ export default function BookingsView() {
 						initialDate={ date }
 						onCreated={ onEdited }
 						onCancel={ () => setEditBooking( null ) }
+						onStatus={ editStatus }
 					/>
 				) }
 			</Modal>
@@ -547,7 +708,7 @@ export default function BookingsView() {
 	);
 }
 
-function BookingRow( { booking, onStatus, onDelete, onRequestReview, onOpen } ) {
+function BookingRow( { booking, onStatus, onDelete, onRequestReview, onOpen, selectMode, selected, onToggleSelect } ) {
 	const meta = statusMeta( booking.status );
 	const [ menuEl, setMenuEl ] = useState( null );
 	const closeMenu = () => setMenuEl( null );
@@ -557,21 +718,26 @@ function BookingRow( { booking, onStatus, onDelete, onRequestReview, onOpen } ) 
 			direction="row"
 			spacing={ 1.75 }
 			alignItems="center"
+			onClick={ selectMode ? onToggleSelect : undefined }
 			sx={ {
-				bgcolor: tokens.surface,
-				border: `1px solid ${ tokens.border }`,
+				bgcolor: selectMode && selected ? tokens.accentSoft : tokens.surface,
+				border: `1px solid ${ selectMode && selected ? tokens.accent : tokens.border }`,
 				borderRadius: '12px',
 				pl: 1.25,
 				pr: 2,
 				py: 1.25,
+				cursor: selectMode ? 'pointer' : 'default',
 			} }
 		>
+			{ selectMode && (
+				<Checkbox checked={ !! selected } onChange={ onToggleSelect } onClick={ ( e ) => e.stopPropagation() } size="small" sx={ { p: 0.25 } } />
+			) }
 			{ /* Status rail */ }
 			<Box sx={ { width: 3, borderRadius: 999, alignSelf: 'stretch', bgcolor: meta.fg, flexShrink: 0 } } />
 			<Typography sx={ { fontWeight: 650, fontSize: 15, width: 52, color: tokens.ink, fontVariantNumeric: 'tabular-nums' } }>
 				{ booking.time }
 			</Typography>
-			<Box sx={ { flex: 1, minWidth: 0 } }>
+			<Box onClick={ onOpen } sx={ { flex: 1, minWidth: 0, cursor: 'pointer' } }>
 				<Typography sx={ { fontWeight: 600, fontSize: 14, color: tokens.ink } } noWrap>
 					{ booking.name || 'Guest' }
 				</Typography>
@@ -653,7 +819,8 @@ function BookingRow( { booking, onStatus, onDelete, onRequestReview, onOpen } ) 
 
 const BLANK = { name: '', phone: '', email: '', party: 2, time: '19:00', notes: '' };
 
-function NewBooking( { initialDate, initialTime, initialTable, onCreated, onCancel, bare, editing } ) {
+function NewBooking( { initialDate, initialTime, initialTable, onCreated, onCancel, bare, editing, onStatus } ) {
+	const [ confirmCancel, setConfirmCancel ] = useState( false );
 	const [ form, setForm ] = useState( editing
 		? {
 			name: editing.name || '',
@@ -671,7 +838,28 @@ function NewBooking( { initialDate, initialTime, initialTable, onCreated, onCanc
 	const [ comboId, setComboId ] = useState( 0 ); // 0 = none
 	const [ saving, setSaving ] = useState( false );
 	const [ error, setError ] = useState( '' );
+	const [ guests, setGuests ] = useState( [] ); // CRM directory for returning-guest search.
+	const [ sugOpen, setSugOpen ] = useState( false );
 	const debounce = useRef( null );
+
+	// Load the guest directory once (new bookings only) so we can recognise
+	// returning guests and pre-fill their details.
+	useEffect( () => {
+		if ( editing ) {
+			return;
+		}
+		api.getGuests().then( ( g ) => setGuests( Array.isArray( g ) ? g : ( ( g && g.guests ) || [] ) ) ).catch( () => {} );
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [] );
+
+	const nq = form.name.trim().toLowerCase();
+	const guestMatches = ( ! editing && nq.length >= 2 && sugOpen )
+		? guests.filter( ( g ) => ( g.name || '' ).toLowerCase().includes( nq ) || ( g.phone || '' ).includes( nq ) || ( g.email || '' ).toLowerCase().includes( nq ) ).slice( 0, 6 )
+		: [];
+	const pickGuest = ( g ) => {
+		set( { name: g.name || '', phone: g.phone || '', email: g.email || '' } );
+		setSugOpen( false );
+	};
 	// Pre-select a table/combo once availability loads: the timeline-clicked table
 	// when creating, or the booking's own table/combo when editing.
 	const prefillTable = useRef( ( editing && editing.tableId ) || initialTable || 0 );
@@ -739,6 +927,7 @@ function NewBooking( { initialDate, initialTime, initialTable, onCreated, onCanc
 	};
 
 	return (
+		<>
 		<Box
 			sx={ bare
 				? { p: 3 }
@@ -753,6 +942,28 @@ function NewBooking( { initialDate, initialTime, initialTable, onCreated, onCanc
 			<Typography variant="subtitle2" sx={ { mb: 2, color: tokens.ink } }>
 				{ editing ? 'Edit booking' : 'New booking' }
 			</Typography>
+
+			{ editing && onStatus && (
+				<Stack direction="row" spacing={ 1 } alignItems="center" flexWrap="wrap" useFlexGap sx={ { mb: 2 } }>
+					<Select
+						size="small"
+						value={ editing.status }
+						onChange={ ( e ) => onStatus( e.target.value ) }
+						sx={ { minWidth: 150, fontWeight: 600, color: statusMeta( editing.status ).fg, bgcolor: statusMeta( editing.status ).bg, borderRadius: '8px', '& fieldset': { border: 'none' } } }
+					>
+						{ STATUSES.map( ( s ) => <MenuItem key={ s.key } value={ s.key }>{ s.label }</MenuItem> ) }
+					</Select>
+					{ 'seated' !== editing.status && ! [ 'cancelled', 'no_show', 'completed' ].includes( editing.status ) && (
+						<Button size="small" variant="contained" onClick={ () => onStatus( 'seated' ) } sx={ { bgcolor: tokens.green, '&:hover': { bgcolor: tokens.green } } }>
+							Seat now
+						</Button>
+					) }
+					<Box sx={ { flex: 1 } } />
+					{ ! [ 'cancelled', 'no_show' ].includes( editing.status ) && (
+						<Button size="small" color="error" onClick={ () => setConfirmCancel( true ) }>Cancel booking</Button>
+					) }
+				</Stack>
+			) }
 
 			<Stack direction="row" flexWrap="wrap" gap={ 1.5 }>
 				<TextField
@@ -779,12 +990,28 @@ function NewBooking( { initialDate, initialTime, initialTable, onCreated, onCanc
 					inputProps={ { min: 1 } }
 					sx={ { width: 96 } }
 				/>
-				<TextField
-					label="Name"
-					value={ form.name }
-					onChange={ ( e ) => set( { name: e.target.value } ) }
-					sx={ { flex: 1, minWidth: 160 } }
-				/>
+				<Box sx={ { position: 'relative', flex: 1, minWidth: 160 } }>
+					<TextField
+						label="Name"
+						value={ form.name }
+						onChange={ ( e ) => { set( { name: e.target.value } ); setSugOpen( true ); } }
+						onFocus={ () => setSugOpen( true ) }
+						onBlur={ () => setTimeout( () => setSugOpen( false ), 150 ) }
+						fullWidth
+					/>
+					{ guestMatches.length > 0 && (
+						<Box sx={ { position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, mt: 0.5, bgcolor: tokens.surface, border: `1px solid ${ tokens.border }`, borderRadius: 2, boxShadow: tokens.shadowSm, overflow: 'hidden' } }>
+							{ guestMatches.map( ( g, i ) => (
+								<Box key={ i } onMouseDown={ () => pickGuest( g ) } sx={ { px: 1.5, py: 1, cursor: 'pointer', '&:hover': { bgcolor: tokens.soft } } }>
+									<Typography sx={ { fontSize: 13.5, fontWeight: 600, color: tokens.ink } }>{ g.name || 'Guest' }{ g.vip ? ' ⭐' : '' }</Typography>
+									<Typography sx={ { fontSize: 12, color: tokens.muted } }>
+										{ [ g.phone, g.email, g.visits ? `${ g.visits } visit${ g.visits === 1 ? '' : 's' }` : '', ( g.allergens && g.allergens.length ) ? `${ g.allergens.length } allergen${ g.allergens.length === 1 ? '' : 's' }` : '' ].filter( Boolean ).join( ' · ' ) }
+									</Typography>
+								</Box>
+							) ) }
+						</Box>
+					) }
+				</Box>
 			</Stack>
 
 			<Stack direction="row" flexWrap="wrap" gap={ 1.5 } sx={ { mt: 1.5 } }>
@@ -942,17 +1169,30 @@ function NewBooking( { initialDate, initialTime, initialTable, onCreated, onCanc
 				) }
 			</Stack>
 		</Box>
+		{ editing && onStatus && (
+			<ConfirmDialog
+				open={ confirmCancel }
+				title="Cancel this booking?"
+				message={ editing.depositPaid ? 'The booking is cancelled and the deposit is refunded.' : 'This booking will be cancelled.' }
+				confirmLabel="Cancel booking"
+				onConfirm={ () => { setConfirmCancel( false ); onStatus( 'cancelled' ); if ( onCancel ) { onCancel(); } } }
+				onCancel={ () => setConfirmCancel( false ) }
+			/>
+		) }
+		</>
 	);
 }
 
 // Full booking detail: reservation, guest, deposit/payment (+Stripe link),
 // history trail, and a Cancel & refund override.
-function BookingDetail( { booking, onClose, onCancel } ) {
+function BookingDetail( { booking, onClose, onCancel, onEdit } ) {
+	const [ confirmCancel, setConfirmCancel ] = useState( false );
 	const m = statusMeta( booking.status );
 	const fmt = ( iso ) => { try { return new Date( iso ).toLocaleString(); } catch ( e ) { return iso; } };
 	const canCancel = ! [ 'cancelled', 'no_show', 'completed' ].includes( booking.status );
 	const stripeUrl = booking.depositPi ? `https://dashboard.stripe.com/${ api.config.stripeMode === 'live' ? '' : 'test/' }payments/${ booking.depositPi }` : '';
 	return (
+		<>
 		<Box sx={ { p: 3 } }>
 			<Stack direction="row" alignItems="center" justifyContent="space-between" sx={ { mb: 2 } }>
 				<Typography variant="h6" sx={ { fontSize: 18 } }>{ booking.name || 'Guest' }</Typography>
@@ -972,12 +1212,19 @@ function BookingDetail( { booking, onClose, onCancel } ) {
 				</Box>
 			) }
 
-			{ canCancel && (
-				<Button size="small" variant="outlined" color="error" sx={ { mb: 2 } }
-					onClick={ () => { if ( window.confirm( booking.depositPaid ? 'Cancel this booking and refund the deposit?' : 'Cancel this booking?' ) ) { onCancel(); } } }>
-					{ booking.depositPaid ? 'Cancel & refund' : 'Cancel booking' }
-				</Button>
-			) }
+			<Stack direction="row" spacing={ 1 } sx={ { mb: 2 } } flexWrap="wrap" useFlexGap>
+				{ onEdit && (
+					<Button size="small" variant="contained" onClick={ onEdit }>
+						Edit booking
+					</Button>
+				) }
+				{ canCancel && (
+					<Button size="small" variant="outlined" color="error"
+						onClick={ () => setConfirmCancel( true ) }>
+						{ booking.depositPaid ? 'Cancel & refund' : 'Cancel booking' }
+					</Button>
+				) }
+			</Stack>
 
 			<DetailSection title="Reservation">
 				<DetailRow label="Date" value={ booking.date } />
@@ -1024,5 +1271,14 @@ function BookingDetail( { booking, onClose, onCancel } ) {
 				</DetailSection>
 			) }
 		</Box>
+		<ConfirmDialog
+			open={ confirmCancel }
+			title={ booking.depositPaid ? 'Cancel booking & refund deposit?' : 'Cancel this booking?' }
+			message={ booking.depositPaid ? 'The booking is cancelled and the deposit is refunded.' : 'This booking will be cancelled.' }
+			confirmLabel={ booking.depositPaid ? 'Cancel & refund' : 'Cancel booking' }
+			onConfirm={ () => { setConfirmCancel( false ); onCancel(); } }
+			onCancel={ () => setConfirmCancel( false ) }
+		/>
+		</>
 	);
 }

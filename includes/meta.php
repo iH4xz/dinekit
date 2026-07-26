@@ -163,8 +163,11 @@ function sanitize_modifiers( $value ) {
 					continue;
 				}
 				$options[] = array(
-					'label' => $label,
-					'price' => isset( $opt['price'] ) ? sanitize_text_field( (string) $opt['price'] ) : '',
+					'label'    => $label,
+					'price'    => isset( $opt['price'] ) ? sanitize_text_field( (string) $opt['price'] ) : '',
+					// Optional per-option cost (private) + calories, for ingredient-level detail.
+					'cost'     => isset( $opt['cost'] ) ? preg_replace( '/[^0-9.]/', '', (string) $opt['cost'] ) : '',
+					'calories' => isset( $opt['calories'] ) ? preg_replace( '/[^0-9]/', '', (string) $opt['calories'] ) : '',
 				);
 			}
 		}

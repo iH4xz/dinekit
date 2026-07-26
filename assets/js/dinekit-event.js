@@ -39,13 +39,21 @@
 			}
 
 			var selections = {};
-			Array.prototype.forEach.call( form.querySelectorAll( '.dinekit-event__course' ), function ( fs ) {
+			var courses = form.querySelectorAll( '.dinekit-event__course' );
+			Array.prototype.forEach.call( courses, function ( fs ) {
 				var section = fs.getAttribute( 'data-section' );
 				var picked = fs.querySelector( 'input[type=radio]:checked' );
 				if ( section && picked ) {
 					selections[ section ] = parseInt( picked.value, 10 );
 				}
 			} );
+
+			// A dish must be chosen for every course (no dish is pre-selected).
+			if ( Object.keys( selections ).length < courses.length ) {
+				resultEl.textContent = t.needChoice || 'Please choose a dish for each course.';
+				resultEl.classList.add( 'is-no' );
+				return;
+			}
 
 			submitEl.disabled = true;
 			submitEl.classList.add( 'is-loading' );

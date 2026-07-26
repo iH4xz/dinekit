@@ -80,9 +80,16 @@ function register_routes() {
 		$ns,
 		'/events/(?P<id>\d+)/guests/(?P<gid>\d+)',
 		array(
-			'methods'             => \WP_REST_Server::DELETABLE,
-			'callback'            => __NAMESPACE__ . '\\delete_guest',
-			'permission_callback' => __NAMESPACE__ . '\\can_manage',
+			array(
+				'methods'             => \WP_REST_Server::DELETABLE,
+				'callback'            => __NAMESPACE__ . '\\delete_guest',
+				'permission_callback' => __NAMESPACE__ . '\\can_manage',
+			),
+			array(
+				'methods'             => \WP_REST_Server::EDITABLE,
+				'callback'            => __NAMESPACE__ . '\\update_guest',
+				'permission_callback' => __NAMESPACE__ . '\\can_manage',
+			),
 		)
 	);
 
@@ -177,7 +184,7 @@ function event_response( $id ) {
 		'capacity'   => (int) get_post_meta( $id, 'dinekit_event_capacity', true ),
 		'deadline'   => (string) get_post_meta( $id, 'dinekit_event_deadline', true ),
 		'price'      => (int) get_post_meta( $id, 'dinekit_event_price', true ),
-		'status'     => (string) get_post_meta( $id, 'dinekit_event_status', true ) ?: 'draft',
+		'status'     => '' !== (string) get_post_meta( $id, 'dinekit_event_status', true ) ? (string) get_post_meta( $id, 'dinekit_event_status', true ) : 'draft',
 		'intro'      => (string) get_post_meta( $id, 'dinekit_event_intro', true ),
 		'token'      => $token,
 		'shareUrl'   => $page ? add_query_arg( 'dkevent', $token, $page ) : '',
@@ -193,11 +200,11 @@ function event_response( $id ) {
  * @return array<string,mixed>
  */
 function guest_response( $post ) {
-	$sel = json_decode( (string) get_post_meta( $post->ID, 'dinekit_guest_selections', true ), true );
-	$ids = static function ( $key ) use ( $post ) {
+	$sel          = json_decode( (string) get_post_meta( $post->ID, 'dinekit_guest_selections', true ), true );
+	$ids          = static function ( $key ) use ( $post ) {
 		return array_values( array_filter( array_map( 'intval', explode( ',', (string) get_post_meta( $post->ID, $key, true ) ) ) ) );
 	};
-	$names = static function ( $id_list, $taxonomy ) {
+	$names        = static function ( $id_list, $taxonomy ) {
 		$out = array();
 		foreach ( $id_list as $id ) {
 			$term = get_term( $id, $taxonomy );
@@ -248,8 +255,8 @@ function prep_sheet( $event_id ) {
 		foreach ( $aids as $aid ) {
 			$term = get_term( $aid, 'dinekit_allergen' );
 			if ( $term && ! is_wp_error( $term ) ) {
-				$allergens[ $aid ]['name']      = $term->name;
-				$allergens[ $aid ]['guests'][]  = $g->post_title;
+				$allergens[ $aid ]['name']     = $term->name;
+				$allergens[ $aid ]['guests'][] = $g->post_title;
 			}
 		}
 	}
@@ -309,7 +316,12 @@ function list_events() {
  */
 function apply_event_fields( $id, $request ) {
 	if ( null !== $request->get_param( 'name' ) ) {
-		wp_update_post( array( 'ID' => $id, 'post_title' => sanitize_text_field( (string) $request->get_param( 'name' ) ) ) );
+		wp_update_post(
+			array(
+				'ID'         => $id,
+				'post_title' => sanitize_text_field( (string) $request->get_param( 'name' ) ),
+			)
+		);
 	}
 	$map = array(
 		'date'     => array( 'dinekit_event_date', 'text' ),
@@ -390,9 +402,9 @@ function create_event( $request ) {
  */
 function get_event( $request ) {
 	require_once DINEKIT_DIR . 'includes/events/events.php';
-	$id       = (int) $request['id'];
-	$menu     = (int) get_post_meta( $id, 'dinekit_event_menu', true );
-	$response = event_response( $id );
+	$id                  = (int) $request['id'];
+	$menu                = (int) get_post_meta( $id, 'dinekit_event_menu', true );
+	$response            = event_response( $id );
 	$response['courses'] = $menu ? \DineKit\Events\courses( $menu ) : array();
 	$response['guests']  = array_map( __NAMESPACE__ . '\\guest_response', guests_of( $id ) );
 	$response['prep']    = prep_sheet( $id );
@@ -438,6 +450,70 @@ function delete_guest( $request ) {
 	return rest_ensure_response( array( 'deleted' => true ) );
 }
 
+/**
+ * A name that's only digits/punctuation isn't a real guest name — staff were
+ * numbering guests ("1", "2") which makes the prep sheet unreadable.
+ *
+ * @param string $name Candidate name.
+ * @return bool True if the name has no letters.
+ */
+function is_placeholder_name( $name ) {
+	return '' === $name || ! preg_match( '/\p{L}/u', $name );
+}
+
+/**
+ * PATCH /events/:id/guests/:gid — staff edit a guest's name, group, choices or
+ * notes (e.g. fixing a typo or reassigning a company). Only the fields present
+ * in the request are touched.
+ *
+ * @param \WP_REST_Request $request Request.
+ * @return \WP_REST_Response|\WP_Error
+ */
+function update_guest( $request ) {
+	$event_id = (int) $request['id'];
+	$gid      = (int) $request['gid'];
+	if ( (int) get_post_meta( $gid, 'dinekit_guest_event', true ) !== $event_id ) {
+		return new \WP_Error( 'dinekit_guest_missing', __( 'Guest not found.', 'dinekit' ), array( 'status' => 404 ) );
+	}
+
+	$params = $request->get_params();
+
+	if ( array_key_exists( 'name', $params ) ) {
+		$name = sanitize_text_field( (string) $request->get_param( 'name' ) );
+		if ( is_placeholder_name( $name ) ) {
+			return new \WP_Error( 'dinekit_guest_name', __( 'Please enter a real name, not just a number.', 'dinekit' ), array( 'status' => 400 ) );
+		}
+		wp_update_post(
+			array(
+				'ID'         => $gid,
+				'post_title' => $name,
+			)
+		);
+	}
+
+	if ( array_key_exists( 'group', $params ) ) {
+		require_once DINEKIT_DIR . 'includes/events/events.php';
+		$group    = sanitize_key( (string) $request->get_param( 'group' ) );
+		$group_ok = '' !== $group && '' !== \DineKit\Events\group_name( $event_id, $group );
+		update_post_meta( $gid, 'dinekit_guest_group', $group_ok ? $group : '' );
+	}
+
+	if ( array_key_exists( 'selections', $params ) ) {
+		$sel_in = (array) $request->get_param( 'selections' );
+		$sel    = array();
+		foreach ( $sel_in as $section => $item ) {
+			$sel[ (int) $section ] = (int) $item;
+		}
+		update_post_meta( $gid, 'dinekit_guest_selections', wp_json_encode( $sel ) );
+	}
+
+	if ( array_key_exists( 'notes', $params ) ) {
+		update_post_meta( $gid, 'dinekit_guest_notes', sanitize_textarea_field( (string) $request->get_param( 'notes' ) ) );
+	}
+
+	return rest_ensure_response( guest_response( get_post( $gid ) ) );
+}
+
 /* -------------------------------------------------------------------------- */
 /* Public                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -461,13 +537,13 @@ function public_event( $request ) {
 
 	return rest_ensure_response(
 		array(
-			'name'     => $event->post_title,
-			'date'     => (string) get_post_meta( $event->ID, 'dinekit_event_date', true ),
-			'time'     => (string) get_post_meta( $event->ID, 'dinekit_event_time', true ),
-			'intro'    => (string) get_post_meta( $event->ID, 'dinekit_event_intro', true ),
-			'deadline' => $deadline,
-			'closed'   => deadline_passed( $deadline ) || full( $event->ID ),
-			'courses'  => $menu ? \DineKit\Events\courses( $menu ) : array(),
+			'name'      => $event->post_title,
+			'date'      => (string) get_post_meta( $event->ID, 'dinekit_event_date', true ),
+			'time'      => (string) get_post_meta( $event->ID, 'dinekit_event_time', true ),
+			'intro'     => (string) get_post_meta( $event->ID, 'dinekit_event_intro', true ),
+			'deadline'  => $deadline,
+			'closed'    => deadline_passed( $deadline ) || full( $event->ID ),
+			'courses'   => $menu ? \DineKit\Events\courses( $menu ) : array(),
 			'group'     => $group,
 			'groupName' => $group ? \DineKit\Events\group_name( $event->ID, $group ) : '',
 			'allergens' => taxonomy_options( 'dinekit_allergen' ),
@@ -507,11 +583,19 @@ function full( $event_id ) {
  * @return array<int,array<string,mixed>>
  */
 function taxonomy_options( $taxonomy ) {
-	$terms = get_terms( array( 'taxonomy' => $taxonomy, 'hide_empty' => false ) );
+	$terms = get_terms(
+		array(
+			'taxonomy'   => $taxonomy,
+			'hide_empty' => false,
+		)
+	);
 	$out   = array();
 	if ( is_array( $terms ) ) {
 		foreach ( $terms as $t ) {
-			$out[] = array( 'id' => (int) $t->term_id, 'name' => $t->name );
+			$out[] = array(
+				'id'   => (int) $t->term_id,
+				'name' => $t->name,
+			);
 		}
 	}
 	return $out;
@@ -551,6 +635,9 @@ function public_submit( $request ) {
 	$name = sanitize_text_field( (string) $request->get_param( 'name' ) );
 	if ( '' === $name ) {
 		return new \WP_Error( 'dinekit_guest_name', __( 'Please enter your name.', 'dinekit' ), array( 'status' => 400 ) );
+	}
+	if ( is_placeholder_name( $name ) ) {
+		return new \WP_Error( 'dinekit_guest_name', __( 'Please enter your name (not just a number).', 'dinekit' ), array( 'status' => 400 ) );
 	}
 
 	$sel_in = (array) $request->get_param( 'selections' );

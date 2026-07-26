@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Box, Stack, Typography, TextField, MenuItem, Select, Chip, CircularProgress, Divider } from '../ui';
 import { tokens } from '../theme';
+import { copyToClipboard } from '../lib/clipboard';
 import { api } from '../api/client';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
@@ -101,7 +102,7 @@ export default function EmailsView() {
 								<Typography sx={ { fontSize: 12, color: tokens.muted, mb: 0.5 } }>Placeholders (click to copy):</Typography>
 								<Stack direction="row" spacing={ 0.5 } flexWrap="wrap" useFlexGap>
 									{ PLACEHOLDERS.map( ( ph ) => (
-										<Chip key={ ph } label={ ph } size="small" onClick={ () => navigator.clipboard && navigator.clipboard.writeText( ph ) } sx={ { fontFamily: 'monospace', bgcolor: tokens.soft, cursor: 'pointer' } } />
+										<Chip key={ ph } label={ ph } size="small" onClick={ () => copyToClipboard( ph ) } sx={ { fontFamily: 'monospace', bgcolor: tokens.soft, cursor: 'pointer' } } />
 									) ) }
 								</Stack>
 							</Box>

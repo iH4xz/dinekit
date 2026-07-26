@@ -9,16 +9,17 @@ import TwoWheelerIcon from '@mui/icons-material/TwoWheeler';
 import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import { tokens } from '../theme';
 import { api } from '../api/client';
+import { useSyncRevision } from '../lib/useSync';
 
 // The kitchen flow, left → right. Tapping a card's button advances it; from
 // "ready" it leaves the board (completed).
 const COLUMNS = [
 	{ key: 'new', label: 'New', next: 'preparing', action: 'Start', fg: '#b45309', bg: '#fffbeb', bar: tokens.amber || '#f59e0b' },
 	{ key: 'preparing', label: 'Preparing', next: 'ready', action: 'Ready', fg: tokens.accentDark || '#4f46e5', bg: tokens.accentSoft || '#eef2ff', bar: tokens.accent },
-	{ key: 'ready', label: 'Ready', next: 'completed', action: 'Done', fg: '#166534', bg: '#f0fdf4', bar: tokens.green || '#16a34a' },
+	{ key: 'ready', label: 'Ready', next: 'done', action: 'Done', fg: '#166534', bg: '#f0fdf4', bar: tokens.green || '#16a34a' },
 ];
 
-const POLL_MS = 12000;
+const POLL_MS = 60000; // safety net only — live updates come from the sync heartbeat.
 
 function minutesSince( iso ) {
 	if ( ! iso ) {
@@ -57,6 +58,46 @@ function itemLine( li ) {
 	return { qty: li.qty, title: li.title, extra };
 }
 
+// Build the Kitchen Display tickets. A dine-in tab shows ONE ticket per fired
+// round (grouped by firedAt), each moving through the columns on its own — so
+// firing a new round never disturbs an earlier one that's already Preparing or
+// Ready. Online/collection/delivery orders are a single ticket driven by the
+// order's own status, as before.
+function buildTickets( orders ) {
+	const out = [];
+	( orders || [] ).forEach( ( o ) => {
+		if ( 'dine_in' === o.channel ) {
+			const rounds = {};
+			( o.items || [] ).forEach( ( li ) => {
+				if ( ! li.fired || ( li.kstage || 'new' ) === 'done' ) {
+					return;
+				}
+				// Group by the unique round id (fall back to firedAt for old rounds).
+				const k = String( li.firedId || li.firedAt || 'r' );
+				( rounds[ k ] = rounds[ k ] || [] ).push( li );
+			} );
+			Object.keys( rounds ).forEach( ( k ) => {
+				const lines = rounds[ k ];
+				out.push( {
+					id: o.id + '|' + k, orderId: o.id, number: o.number, dineIn: true,
+					round: k, stage: lines[ 0 ].kstage || 'new', lines,
+					table: o.table, fulfilment: o.fulfilment, notes: o.notes, placed: lines[ 0 ].firedAt || null,
+				} );
+			} );
+		} else {
+			const st = 'sent' === o.status ? 'new' : o.status;
+			if ( [ 'new', 'preparing', 'ready' ].includes( st ) ) {
+				out.push( {
+					id: o.id + '|all', orderId: o.id, number: o.number, dineIn: false,
+					firedAt: null, stage: st, lines: o.items || [],
+					table: o.table, fulfilment: o.fulfilment, notes: o.notes, placed: o.placed,
+				} );
+			}
+		}
+	} );
+	return out;
+}
+
 export default function KitchenView() {
 	const [ orders, setOrders ] = useState( null );
 	const [ busy, setBusy ] = useState( {} ); // id → true while advancing
@@ -69,14 +110,23 @@ export default function KitchenView() {
 	const load = async () => {
 		try {
 			const list = await api.getOrders();
-			setOrders( ( list || [] ).filter( ( o ) => [ 'new', 'preparing', 'ready' ].includes( o.status ) && ! o.archived ) );
+			// 'sent' = a dine-in round just fired from Take Order; it belongs on the
+			// board next to new online orders (both are waiting to be cooked).
+			setOrders( ( list || [] ).filter( ( o ) => [ 'new', 'sent', 'preparing', 'ready' ].includes( o.status ) && ! o.archived ) );
 		} catch ( e ) {
 			// Keep the last board on a transient error rather than blanking the kitchen.
 		}
 	};
 
+	// Refetch the board the instant an order changes on any tablet (via the sync
+	// heartbeat), not on a fixed timer. POLL_MS is now just a safety net in case a
+	// heartbeat is ever missed.
+	const ordersRev = useSyncRevision( 'orders' );
 	useEffect( () => {
 		load();
+	}, [ ordersRev ] );
+
+	useEffect( () => {
 		timer.current = window.setInterval( load, POLL_MS );
 		ticker.current = window.setInterval( () => setTick( ( n ) => n + 1 ), 20000 );
 		const onFs = () => setIsFull( !! document.fullscreenElement );
@@ -97,32 +147,36 @@ export default function KitchenView() {
 		}
 	};
 
-	const advance = async ( order, next ) => {
-		setBusy( ( b ) => ( { ...b, [ order.id ]: true } ) );
-		// Optimistic: drop or move the card immediately so the kitchen feels instant.
-		setOrders( ( list ) =>
-			next === 'completed'
-				? list.filter( ( o ) => o.id !== order.id )
-				: list.map( ( o ) => ( o.id === order.id ? { ...o, status: next } : o ) )
-		);
+	// Advance one ticket a column right. A dine-in round advances on its own via
+	// `kitchen_stage` (the backend only flips the tab to 'served' once no round is
+	// still cooking — so the bill stays open + payable at the till, not
+	// 'completed'). Online/collection orders advance the whole order; "Done"
+	// completes them.
+	const advance = async ( t, next ) => {
+		setBusy( ( b ) => ( { ...b, [ t.id ]: true } ) );
 		try {
-			await api.updateOrder( order.id, { status: next } );
+			if ( t.dineIn ) {
+				await api.updateOrder( t.orderId, { action: 'kitchen_stage', round: t.round, stage: next } );
+			} else {
+				await api.updateOrder( t.orderId, { status: next === 'done' ? 'completed' : next } );
+			}
 		} catch ( e ) {
-			load(); // Reconcile if the write failed.
+			// fall through to reload
 		} finally {
-			setBusy( ( b ) => { const n = { ...b }; delete n[ order.id ]; return n; } );
+			setBusy( ( b ) => { const n = { ...b }; delete n[ t.id ]; return n; } );
+			load(); // Reconcile the board (a round may have merged/left).
 		}
 	};
 
 	const byColumn = useMemo( () => {
 		const map = { new: [], preparing: [], ready: [] };
-		( orders || [] ).forEach( ( o ) => { if ( map[ o.status ] ) { map[ o.status ].push( o ); } } );
-		// Oldest first — cook in the order tickets arrived.
+		buildTickets( orders ).forEach( ( t ) => { if ( map[ t.stage ] ) { map[ t.stage ].push( t ); } } );
+		// Oldest first — cook in the order rounds arrived.
 		Object.values( map ).forEach( ( arr ) => arr.sort( ( a, b ) => String( a.placed ).localeCompare( String( b.placed ) ) ) );
 		return map;
 	}, [ orders ] );
 
-	const total = ( orders || [] ).length;
+	const total = byColumn.new.length + byColumn.preparing.length + byColumn.ready.length;
 
 	return (
 		<Box
@@ -186,15 +240,15 @@ export default function KitchenView() {
 									{ list.length === 0 ? (
 										<Typography sx={ { fontSize: 13, color: tokens.muted2, textAlign: 'center', py: 3 } }>—</Typography>
 									) : (
-										list.map( ( o ) => {
-											const mins = minutesSince( o.placed );
+										list.map( ( tk ) => {
+											const mins = minutesSince( tk.placed );
 											const tone = timerTone( mins );
-											const t = typeMeta( o );
+											const t = typeMeta( tk );
 											return (
-												<Box key={ o.id } sx={ { border: `1px solid ${ tokens.border }`, borderLeft: `4px solid ${ col.bar }`, borderRadius: '10px', bgcolor: tokens.bg, overflow: 'hidden' } }>
+												<Box key={ tk.id } sx={ { border: `1px solid ${ tokens.border }`, borderLeft: `4px solid ${ col.bar }`, borderRadius: '10px', bgcolor: tokens.bg, overflow: 'hidden' } }>
 													<Box sx={ { px: 1.5, py: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 } }>
 														<Stack direction="row" alignItems="center" spacing={ 0.75 } sx={ { minWidth: 0 } }>
-															<Typography sx={ { fontWeight: 800, fontSize: 16 } }>#{ o.number }</Typography>
+															<Typography sx={ { fontWeight: 800, fontSize: 16 } }>#{ tk.number }</Typography>
 															<Stack direction="row" alignItems="center" spacing={ 0.4 } sx={ { color: tokens.muted } }>
 																{ t.icon }
 																<Typography sx={ { fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 120 } }>{ t.label }</Typography>
@@ -205,7 +259,7 @@ export default function KitchenView() {
 														</Box>
 													</Box>
 													<Stack spacing={ 0.4 } sx={ { px: 1.5, pb: 1 } }>
-														{ ( o.items || [] ).map( ( li, i ) => {
+														{ tk.lines.map( ( li, i ) => {
 															const line = itemLine( li );
 															return (
 																<Box key={ i }>
@@ -219,16 +273,16 @@ export default function KitchenView() {
 																</Box>
 															);
 														} ) }
-														{ o.notes && (
+														{ tk.notes && (
 															<Box sx={ { mt: 0.5, px: 1, py: 0.6, bgcolor: '#fef3c7', border: '1px solid #fde68a', borderRadius: '6px' } }>
-																<Typography sx={ { fontSize: 12.5, color: '#92400e', fontWeight: 600 } }>📝 { o.notes }</Typography>
+																<Typography sx={ { fontSize: 12.5, color: '#92400e', fontWeight: 600 } }>📝 { tk.notes }</Typography>
 															</Box>
 														) }
 													</Stack>
 													<Button
 														fullWidth
-														onClick={ () => advance( o, col.next ) }
-														disabled={ !! busy[ o.id ] }
+														onClick={ () => advance( tk, col.next ) }
+														disabled={ !! busy[ tk.id ] }
 														sx={ {
 															borderRadius: 0,
 															py: 1,
@@ -239,7 +293,7 @@ export default function KitchenView() {
 															'&:hover': { bgcolor: col.fg },
 														} }
 													>
-														{ busy[ o.id ] ? <CircularProgress size={ 16 } color="inherit" /> : col.action }
+														{ busy[ tk.id ] ? <CircularProgress size={ 16 } color="inherit" /> : col.action }
 													</Button>
 												</Box>
 											);

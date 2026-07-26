@@ -11,6 +11,7 @@ import {
 	Chip,
 	CircularProgress,
 } from '../ui';
+import ConfirmDialog from './ui/ConfirmDialog';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
@@ -44,6 +45,7 @@ export default function StaffRota( { staff, roles } ) {
 	const [ shifts, setShifts ] = useState( [] );
 	const [ loading, setLoading ] = useState( true );
 	const [ editing, setEditing ] = useState( null );
+	const [ confirmDel, setConfirmDel ] = useState( false );
 
 	const days = useMemo( () => Array.from( { length: 7 }, ( _, i ) => addDays( weekStart, i ) ), [ weekStart ] );
 	const from = isoOf( days[ 0 ] );
@@ -62,6 +64,20 @@ export default function StaffRota( { staff, roles } ) {
 
 	const totalHours = shifts.reduce( ( s, sh ) => s + ( sh.hours || 0 ), 0 );
 	const totalCost = shifts.reduce( ( s, sh ) => s + ( sh.cost || 0 ), 0 );
+
+	// "Who's on today?" — a tester asked for a plain names view for the day, not
+	// just weekly counts. Only shown when today falls inside the week on screen.
+	// Holiday-clash shifts (scheduled AND on approved leave) are surfaced with a
+	// warning, not hidden — per policy a clash is flagged, never silently dropped,
+	// so the manager never sees "Nobody scheduled" while a contested shift exists.
+	const todayIso = isoOf( new Date() );
+	const todayInWeek = todayIso >= from && todayIso <= to;
+	const todayShifts = shifts
+		.filter( ( s ) => s.date === todayIso )
+		.map( ( s ) => ( { ...s, member: staff.find( ( m ) => m.id === s.staffId ) } ) )
+		.sort( ( a, b ) => ( a.start || '' ).localeCompare( b.start || '' ) );
+	const workingCount = todayShifts.filter( ( s ) => ! s.onLeave ).length;
+	const clashCount = todayShifts.length - workingCount;
 
 	const openNew = ( m, date ) => setEditing( { staffId: m.id, staffName: m.name, date, start: '17:00', end: '23:00', role: m.role, note: '' } );
 	const openEdit = ( sh ) => {
@@ -108,6 +124,32 @@ export default function StaffRota( { staff, roles } ) {
 				<Chip label={ `${ money( totalCost ) } labour` } size="small" sx={ { bgcolor: tokens.accentSoft, color: tokens.accentDark, fontWeight: 600 } } />
 			</Stack>
 
+			{ todayInWeek && (
+				<Box sx={ { mb: 1.5, p: 1.5, borderRadius: '12px', border: `1px solid ${ tokens.border }`, bgcolor: tokens.accentSoft } }>
+					<Stack direction="row" alignItems="center" spacing={ 1 } sx={ { mb: todayShifts.length ? 1 : 0 } }>
+						<Typography sx={ { fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: tokens.accentDark } }>
+							On today
+						</Typography>
+						<Typography sx={ { fontSize: 12.5, color: tokens.muted } }>
+							{ todayShifts.length ? `${ workingCount } working` : 'Nobody scheduled' }
+							{ clashCount > 0 ? ` · ${ clashCount } on holiday ⚠` : '' }
+						</Typography>
+					</Stack>
+					{ todayShifts.length > 0 && (
+						<Stack direction="row" spacing={ 1 } flexWrap="wrap" useFlexGap>
+							{ todayShifts.map( ( s ) => (
+								<Stack key={ s.id } direction="row" alignItems="center" spacing={ 0.75 } sx={ { bgcolor: tokens.surface, border: `1px solid ${ s.onLeave ? tokens.amber : tokens.border }`, borderRadius: '999px', pl: 0.75, pr: 1.25, py: 0.5, opacity: s.onLeave ? 0.85 : 1 } }>
+									<Box sx={ { width: 8, height: 8, borderRadius: '50%', bgcolor: ( s.member && s.member.color ) || tokens.muted2, flexShrink: 0 } } />
+									<Typography sx={ { fontSize: 12.5, fontWeight: 600, color: tokens.ink } }>{ ( s.member && s.member.name ) || 'Unnamed' }</Typography>
+									<Typography sx={ { fontSize: 11.5, color: tokens.muted } }>{ roleLabel( s.role ) } · { s.start }–{ s.end }</Typography>
+									{ s.onLeave && <Typography sx={ { fontSize: 11, fontWeight: 700, color: tokens.amber } }>on holiday ⚠</Typography> }
+								</Stack>
+							) ) }
+						</Stack>
+					) }
+				</Box>
+			) }
+
 			<Box sx={ { border: `1px solid ${ tokens.border }`, borderRadius: '12px', overflowX: 'auto', bgcolor: tokens.surface } }>
 				<Box sx={ { minWidth: 760 } }>
 					{ /* Header */ }
@@ -128,7 +170,10 @@ export default function StaffRota( { staff, roles } ) {
 						<Stack key={ m.id } direction="row" sx={ { borderTop: `1px solid ${ tokens.border }`, minHeight: 54 } }>
 							<Box sx={ { width: NAME_W, flexShrink: 0, px: 1.5, py: 1, borderRight: `1px solid ${ tokens.border }`, display: 'flex', alignItems: 'center', gap: 0.75 } }>
 								<Box sx={ { width: 10, height: 10, borderRadius: '50%', bgcolor: m.color, flexShrink: 0 } } />
-								<Typography sx={ { fontSize: 13, fontWeight: 600, color: tokens.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ m.name || 'Unnamed' }</Typography>
+								<Box sx={ { minWidth: 0 } }>
+									<Typography sx={ { fontSize: 13, fontWeight: 600, color: tokens.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ m.name || 'Unnamed' }</Typography>
+									{ m.role && <Typography sx={ { fontSize: 11, color: tokens.muted2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ roleLabel( m.role ) }</Typography> }
+								</Box>
 							</Box>
 							{ days.map( ( d, i ) => {
 								const date = isoOf( d );
@@ -188,7 +233,7 @@ export default function StaffRota( { staff, roles } ) {
 				onClose={ () => setEditing( null ) }
 				disableEnforceFocus
 				sx={ { zIndex: 100000 } }
-				PaperProps={ { sx: { width: { xs: '100%', sm: 360 } } } }
+				PaperProps={ { sx: { width: 'min(440px, 100%)', height: 'auto' } } }
 			>
 				{ editing && (
 					<Box sx={ { p: 3 } }>
@@ -210,7 +255,7 @@ export default function StaffRota( { staff, roles } ) {
 							<TextField label="Note (optional)" size="small" value={ editing.note } onChange={ ( e ) => setEditing( { ...editing, note: e.target.value } ) } fullWidth />
 							<Stack direction="row" alignItems="center" spacing={ 1 }>
 								{ editing.id && (
-									<Button color="error" size="small" startIcon={ <DeleteOutlineIcon /> } onClick={ deleteShift }>Delete</Button>
+									<Button color="error" size="small" startIcon={ <DeleteOutlineIcon /> } onClick={ () => setConfirmDel( true ) }>Delete</Button>
 								) }
 								<Box sx={ { flex: 1 } } />
 								<Button onClick={ () => setEditing( null ) } sx={ { color: tokens.muted } }>Cancel</Button>
@@ -221,6 +266,14 @@ export default function StaffRota( { staff, roles } ) {
 					</Box>
 				) }
 			</Drawer>
+			<ConfirmDialog
+				open={ confirmDel }
+				title="Delete this shift?"
+				message={ editing ? `${ editing.staffName }'s ${ editing.start }–${ editing.end } shift will be removed from the rota.` : '' }
+				confirmLabel="Delete shift"
+				onConfirm={ () => { setConfirmDel( false ); deleteShift(); } }
+				onCancel={ () => setConfirmDel( false ) }
+			/>
 		</Box>
 	);
 }

@@ -11,7 +11,7 @@ import { tokens } from '../theme';
 import NotificationCenter from './NotificationCenter';
 
 const STATES = {
-	idle: { icon: <CloudDoneIcon sx={ { fontSize: 15 } } />, text: 'All changes saved', fg: tokens.muted, bg: tokens.soft },
+	idle: { icon: <CloudDoneIcon sx={ { fontSize: 15 } } />, text: 'Auto-saved', fg: tokens.ink2, bg: tokens.soft },
 	saving: { icon: <CloudSyncIcon sx={ { fontSize: 15 } } />, text: 'Saving…', fg: tokens.accent, bg: tokens.accentSoft },
 	saved: { icon: <CloudDoneIcon sx={ { fontSize: 15 } } />, text: 'Saved', fg: tokens.green, bg: tokens.greenSoft },
 	error: { icon: <ErrorOutlineIcon sx={ { fontSize: 15 } } />, text: 'Save failed', fg: tokens.red, bg: tokens.redSoft },

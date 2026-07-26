@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ConfirmDialog from './ui/ConfirmDialog';
 import {
 	Box,
 	Stack,
@@ -18,6 +19,7 @@ import {
 	Divider,
 	Snackbar,
 	Drawer,
+	Checkbox,
 } from '../ui';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ReplayIcon from '@mui/icons-material/Replay';
@@ -36,6 +38,7 @@ import StorefrontIcon from '@mui/icons-material/Storefront';
 import LaunchIcon from '@mui/icons-material/Launch';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import { tokens } from '../theme';
+import { copyToClipboard } from '../lib/clipboard';
 import { api } from '../api/client';
 import { printDoc, esc } from '../lib/print';
 import Page from './ui/Page';
@@ -73,8 +76,8 @@ function ShareOrdering() {
 			.finally( () => setCreating( false ) );
 	};
 	const copy = () => {
-		if ( url && navigator.clipboard ) {
-			navigator.clipboard.writeText( url ).then( () => { setCopied( true ); setTimeout( () => setCopied( false ), 1500 ); } );
+		if ( url ) {
+			copyToClipboard( url ).then( () => { setCopied( true ); setTimeout( () => setCopied( false ), 1500 ); } );
 		}
 	};
 
@@ -151,6 +154,7 @@ const PAYMENT = {
 	authorized: { label: 'Card held', fg: tokens.amber, bg: tokens.amberSoft },
 	pending: { label: 'Awaiting payment', fg: tokens.muted, bg: tokens.soft },
 	refunded: { label: 'Refunded', fg: tokens.red, bg: tokens.redSoft },
+	part_refunded: { label: 'Part-refunded', fg: tokens.amber, bg: tokens.amberSoft },
 	released: { label: 'Hold released', fg: tokens.muted, bg: tokens.soft },
 	on_collection: { label: 'Pay on collection', fg: tokens.muted2, bg: tokens.soft },
 	unpaid: { label: 'Unpaid', fg: tokens.muted2, bg: tokens.soft },
@@ -249,6 +253,10 @@ export default function OrdersView() {
 				setDetail( ( d ) => ( d && d.id === id ? o : d ) );
 			}
 		} );
+	};
+	const refund = ( id, lines ) => {
+		const body = lines && lines.length ? { action: 'refund', lines } : { action: 'refund' };
+		api.updateOrder( id, body ).then( ( o ) => o && patchLocal( id, o ) );
 	};
 
 	const filtered = useMemo( () => {
@@ -487,8 +495,8 @@ export default function OrdersView() {
 					) ) }
 				</Stack>
 			) }
-			<Drawer anchor="right" open={ !! detail } onClose={ () => setDetail( null ) } disableEnforceFocus sx={ { zIndex: 100000 } } PaperProps={ { sx: { width: { xs: '100%', sm: 460 } } } }>
-				{ detail && <OrderDetail order={ detail } money={ money } onClose={ () => setDetail( null ) } onResend={ () => resend( detail.id ) } onCancel={ () => { reject( detail.id ); setDetail( null ); } } onPrint={ ( st ) => printTicket( detail, st ) } /> }
+			<Drawer anchor="right" open={ !! detail } onClose={ () => setDetail( null ) } disableEnforceFocus sx={ { zIndex: 100000 } }>
+				{ detail && <OrderDetail order={ detail } money={ money } onClose={ () => setDetail( null ) } onResend={ () => resend( detail.id ) } onCancel={ () => { reject( detail.id ); setDetail( null ); } } onPrint={ ( st ) => printTicket( detail, st ) } onRefund={ ( lines ) => { refund( detail.id, lines ); setDetail( null ); } } /> }
 			</Drawer>
 		</Page>
 	);
@@ -631,9 +639,7 @@ function OrderSettings() {
 	}
 
 	const copyShortcode = () => {
-		if ( navigator.clipboard ) {
-			navigator.clipboard.writeText( '[dinekit_order]' ).then( () => setCopied( true ) );
-		}
+		copyToClipboard( '[dinekit_order]' ).then( () => setCopied( true ) );
 	};
 
 	return (
@@ -766,7 +772,7 @@ function DRow( { label, value, mono } ) {
 
 // Full order detail: customer, items, payment (+Stripe id), receipt email log
 // with resend, and the status/payment history trail.
-function OrderDetail( { order, money, onClose, onResend, onCancel, onPrint } ) {
+function OrderDetail( { order, money, onClose, onResend, onCancel, onPrint, onRefund } ) {
 	const m = O_STATUS.find( ( s ) => s.key === order.status ) || O_STATUS[ 0 ];
 	const pay = PAYMENT[ order.payment ];
 	const fmt = ( iso ) => { try { return new Date( iso ).toLocaleString(); } catch ( e ) { return iso; } };
@@ -775,7 +781,16 @@ function OrderDetail( { order, money, onClose, onResend, onCancel, onPrint } ) {
 	// Manager override: cancel + refund/release even after an order was accepted.
 	const canCancel = ! [ 'cancelled', 'completed' ].includes( order.status );
 	const refundable = [ 'paid', 'authorized', 'pending' ].includes( order.payment );
+	const [ confirm, setConfirm ] = useState( null );
+	// Partial refund: pick specific lines, or leave all unticked to refund it all.
+	const [ refundOpen, setRefundOpen ] = useState( false );
+	const [ refundSel, setRefundSel ] = useState( () => new Set() );
+	const canPartRefund = [ 'paid', 'part_refunded' ].includes( order.payment );
+	const refundLines = ( order.items || [] ).map( ( li, i ) => ( { li, i } ) ).filter( ( x ) => ! x.li.refunded );
+	const selAmount = refundLines.filter( ( x ) => refundSel.has( x.i ) ).reduce( ( s, x ) => s + Number( x.li.lineTotal || 0 ), 0 );
+	const toggleRefund = ( i ) => setRefundSel( ( prev ) => { const n = new Set( prev ); if ( n.has( i ) ) { n.delete( i ); } else { n.add( i ); } return n; } );
 	return (
+		<>
 		<Box sx={ { p: 3 } }>
 			<Stack direction="row" alignItems="center" justifyContent="space-between" sx={ { mb: 2 } }>
 				<Typography variant="h6" sx={ { fontSize: 18 } }>Order #{ order.number }</Typography>
@@ -791,14 +806,28 @@ function OrderDetail( { order, money, onClose, onResend, onCancel, onPrint } ) {
 					size="small"
 					variant="outlined"
 					color="error"
-					onClick={ () => {
-						if ( window.confirm( refundable ? 'Cancel this order and refund/release the payment?' : 'Cancel this order?' ) ) {
-							onCancel();
-						}
-					} }
+					onClick={ () => setConfirm( {
+						title: refundable ? 'Cancel & refund this order?' : 'Cancel this order?',
+						message: refundable ? 'The order is cancelled and the payment is refunded (or the hold released).' : 'This order will be cancelled.',
+						confirmLabel: refundable ? 'Cancel & refund' : 'Cancel order',
+						onConfirm: onCancel,
+					} ) }
 					sx={ { mb: 2 } }
 				>
 					{ refundable ? 'Cancel & refund' : 'Cancel order' }
+				</Button>
+			) }
+
+			{ /* A served/completed order can still be refunded (post-meal issue) without cancelling it — whole order or selected items. */ }
+			{ ! canCancel && canPartRefund && (
+				<Button
+					size="small"
+					variant="outlined"
+					color="error"
+					onClick={ () => { setRefundSel( new Set() ); setRefundOpen( true ); } }
+					sx={ { mb: 2 } }
+				>
+					Refund…
 				</Button>
 			) }
 
@@ -898,5 +927,38 @@ function OrderDetail( { order, money, onClose, onResend, onCancel, onPrint } ) {
 				</Stack>
 			</DSection>
 		</Box>
+		<ConfirmDialog
+			open={ !! confirm }
+			title={ ( confirm || {} ).title }
+			message={ ( confirm || {} ).message }
+			confirmLabel={ ( confirm || {} ).confirmLabel }
+			onConfirm={ () => { const fn = confirm && confirm.onConfirm; setConfirm( null ); if ( fn ) { fn(); } } }
+			onCancel={ () => setConfirm( null ) }
+		/>
+		<ConfirmDialog
+			open={ refundOpen }
+			title="Refund"
+			message={ refundSel.size ? 'Refunding just the ticked items.' : 'Leave everything unticked to refund the whole order, or tick specific items for a partial refund.' }
+			confirmLabel={ refundSel.size ? `Refund ${ money( selAmount ) }` : 'Refund whole order' }
+			onConfirm={ () => { const lines = Array.from( refundSel ); setRefundOpen( false ); onRefund( lines ); } }
+			onCancel={ () => setRefundOpen( false ) }
+			details={
+				refundLines.length ? (
+					<Stack spacing={ 0.5 } sx={ { maxHeight: 260, overflowY: 'auto' } }>
+						{ refundLines.map( ( { li, i } ) => (
+							<Stack key={ i } direction="row" alignItems="center" spacing={ 1 } sx={ { py: 0.25 } }>
+								<Checkbox size="small" checked={ refundSel.has( i ) } onChange={ () => toggleRefund( i ) } sx={ { p: 0.25 } } />
+								<Typography sx={ { flex: 1, fontSize: 13 } }>{ li.qty }× { li.title }{ li.priceLabel ? ` (${ li.priceLabel })` : '' }</Typography>
+								<Typography sx={ { fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums' } }>{ money( li.lineTotal ) }</Typography>
+							</Stack>
+						) ) }
+						{ ( order.items || [] ).some( ( li ) => li.refunded ) && (
+							<Typography sx={ { fontSize: 11.5, color: tokens.muted, pt: 0.5 } }>Already-refunded items are hidden.</Typography>
+						) }
+					</Stack>
+				) : null
+			}
+		/>
+		</>
 	);
 }

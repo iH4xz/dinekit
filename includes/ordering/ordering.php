@@ -175,6 +175,7 @@ function statuses() {
 		'new'              => __( 'New', 'dinekit' ),
 		'preparing'        => __( 'Preparing', 'dinekit' ),
 		'ready'            => __( 'Ready', 'dinekit' ),
+		'served'           => __( 'Served', 'dinekit' ),
 		'out_for_delivery' => __( 'Out for delivery', 'dinekit' ),
 		'delivered'        => __( 'Delivered', 'dinekit' ),
 		'completed'        => __( 'Completed', 'dinekit' ),
@@ -280,6 +281,7 @@ function get_settings() {
 		'delivery_mins'    => 45,    // Estimated delivery lead time.
 		'delivery_area'    => '',    // Free-text note about the delivery area/zones.
 		'table_qr_pay'     => false, // Table QR orders: false = add to tab (pay later), true = pay upfront.
+		'service_pct'      => 12.5,  // Default dine-in service charge %, editable at the till (saves back here).
 	);
 	$stored   = get_option( SETTINGS, array() );
 	return is_array( $stored ) ? array_merge( $defaults, $stored ) : $defaults;
@@ -372,6 +374,9 @@ function save_settings( $data ) {
 	}
 	if ( isset( $data['min_order'] ) ) {
 		$current['min_order'] = max( 0, (float) $data['min_order'] );
+	}
+	if ( isset( $data['service_pct'] ) ) {
+		$current['service_pct'] = max( 0, min( 100, (float) $data['service_pct'] ) );
 	}
 	if ( isset( $data['emails_enabled'] ) ) {
 		$current['emails_enabled'] = (bool) $data['emails_enabled'];
@@ -490,6 +495,83 @@ function release_or_refund( $id ) {
 			log_event( $id, sprintf( /* translators: %s: error message. */ __( 'Refund failed (needs manual action): %s', 'dinekit' ), $res->get_error_message() ) );
 		}
 	}
+}
+
+/**
+ * Partial refund: refund only the selected line items (e.g. one dish sent back),
+ * not the whole order. The amount is recomputed server-side from those lines'
+ * totals — never trusted from the client — the lines are marked refunded so they
+ * can't be refunded twice, and the payment lands on 'part_refunded' (or
+ * 'refunded' once every line has been). Card → a partial Stripe refund; cash /
+ * no-PI → recorded for the books.
+ *
+ * @param int   $id      Order id.
+ * @param int[] $indexes Line indexes to refund.
+ * @return float The amount refunded (0 if nothing eligible).
+ */
+function refund_lines( $id, $indexes ) {
+	$items = json_decode( (string) get_post_meta( $id, 'dinekit_order_items', true ), true );
+	if ( ! is_array( $items ) ) {
+		return 0.0;
+	}
+	$amount = 0.0;
+	$labels = array();
+	foreach ( $indexes as $i ) {
+		$i = (int) $i;
+		if ( isset( $items[ $i ] ) && empty( $items[ $i ]['refunded'] ) ) {
+			$amount                 += (float) ( $items[ $i ]['lineTotal'] ?? 0 );
+			$items[ $i ]['refunded'] = true;
+			$labels[]                = ( $items[ $i ]['qty'] ?? 1 ) . '× ' . ( $items[ $i ]['title'] ?? __( 'item', 'dinekit' ) );
+		}
+	}
+	$amount = round( $amount, 2 );
+	if ( $amount <= 0 ) {
+		return 0.0;
+	}
+	update_post_meta( $id, 'dinekit_order_items', wp_json_encode( $items ) );
+
+	$pi  = (string) get_post_meta( $id, 'dinekit_order_pi', true );
+	$pay = (string) get_post_meta( $id, 'dinekit_order_payment', true );
+	$ok  = true;
+	if ( '' !== $pi && 'paid' === $pay ) {
+		require_once DINEKIT_DIR . 'includes/payments.php';
+		$res = \DineKit\Payments\stripe_post(
+			'refunds',
+			array(
+				'payment_intent' => $pi,
+				'amount'         => (int) round( $amount * 100 ),
+			)
+		);
+		$ok  = ! is_wp_error( $res );
+		if ( ! $ok ) {
+			update_post_meta( $id, 'dinekit_order_refund_due', 1 );
+			log_event( $id, sprintf( /* translators: %s: error message. */ __( 'Partial refund failed (needs manual action): %s', 'dinekit' ), $res->get_error_message() ) );
+		}
+	}
+
+	$refunded = round( (float) get_post_meta( $id, 'dinekit_order_refunded', true ) + $amount, 2 );
+	update_post_meta( $id, 'dinekit_order_refunded', $refunded );
+
+	$all_refunded = true;
+	foreach ( $items as $li ) {
+		if ( empty( $li['refunded'] ) ) {
+			$all_refunded = false;
+			break;
+		}
+	}
+	if ( $ok ) {
+		update_post_meta( $id, 'dinekit_order_payment', $all_refunded ? 'refunded' : 'part_refunded' );
+	}
+	log_event(
+		$id,
+		sprintf(
+			/* translators: 1: amount, 2: item list. */
+			__( 'Refunded %1$s (%2$s)', 'dinekit' ),
+			number_format( $amount, 2 ),
+			implode( ', ', $labels )
+		)
+	);
+	return $amount;
 }
 
 /**

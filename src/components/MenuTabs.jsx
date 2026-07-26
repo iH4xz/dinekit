@@ -63,6 +63,13 @@ export default function MenuTabs( { menus, selected, onSelect, store } ) {
 		}
 	};
 
+	const quickAdd = async ( name ) => {
+		const term = await store.createTerm( 'dinekit_menu', name );
+		if ( term && term.id ) {
+			onSelect( term.id );
+		}
+	};
+
 	const saveRename = () => {
 		const name = renameValue.trim();
 		setRenaming( false );
@@ -83,26 +90,40 @@ export default function MenuTabs( { menus, selected, onSelect, store } ) {
 
 	const chip = statusChip( activeMenu && activeMenu.status );
 
-	// No menus yet: keep it simple with just a subtle opt-in for places that
-	// run separate menus (Lunch/Dinner). Most restaurants never need this.
+	// No menus yet: make the "separate menus" option clearly discoverable (an AGM
+	// tester missed the old muted one-liner) with one-tap Breakfast/Lunch/Dinner —
+	// while staying out of the way for places that only ever run one menu.
 	if ( menus.length === 0 ) {
 		return (
-			<Box sx={ { mb: 2 } }>
-				{ adding ? (
-					<InputBase
-						autoFocus
-						placeholder="Menu name (e.g. Lunch)"
-						value={ newName }
-						onChange={ ( e ) => setNewName( e.target.value ) }
-						onKeyDown={ ( e ) => e.key === 'Enter' && addMenu() }
-						onBlur={ addMenu }
-						sx={ { border: `1px solid ${ tokens.border }`, borderRadius: 2, px: 1, py: 0.5, fontSize: 14, width: 180 } }
-					/>
-				) : (
-					<Button size="small" startIcon={ <AddIcon /> } onClick={ () => setAdding( true ) } sx={ { color: tokens.muted } }>
-						Running separate menus? (Lunch, Dinner…)
-					</Button>
-				) }
+			<Box sx={ { mb: 2.5, p: 2, bgcolor: tokens.surface, border: `1px solid ${ tokens.border }`, borderRadius: 3 } }>
+				<Typography sx={ { fontSize: 14, fontWeight: 700, color: tokens.ink } }>
+					Running separate menus?
+				</Typography>
+				<Typography sx={ { fontSize: 13, color: tokens.muted, mt: 0.25, mb: 1.25 } }>
+					Split your dishes into their own menus — each can have its own schedule (e.g. Breakfast 8–11, Dinner from 5). Tap one to start, or add your own.
+				</Typography>
+				<Stack direction="row" spacing={ 1 } alignItems="center" flexWrap="wrap" useFlexGap>
+					{ [ 'Breakfast', 'Lunch', 'Dinner', 'Drinks' ].map( ( name ) => (
+						<Button key={ name } size="small" variant="outlined" startIcon={ <AddIcon /> } onClick={ () => quickAdd( name ) }>
+							{ name }
+						</Button>
+					) ) }
+					{ adding ? (
+						<InputBase
+							autoFocus
+							placeholder="Menu name"
+							value={ newName }
+							onChange={ ( e ) => setNewName( e.target.value ) }
+							onKeyDown={ ( e ) => e.key === 'Enter' && addMenu() }
+							onBlur={ addMenu }
+							sx={ { border: `1px solid ${ tokens.border }`, borderRadius: 2, px: 1, py: 0.5, fontSize: 14, width: 150 } }
+						/>
+					) : (
+						<Button size="small" onClick={ () => setAdding( true ) } sx={ { color: tokens.muted } }>
+							Custom…
+						</Button>
+					) }
+				</Stack>
 			</Box>
 		);
 	}

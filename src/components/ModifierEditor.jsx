@@ -11,6 +11,7 @@ import {
 } from '../ui';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import TuneIcon from '@mui/icons-material/Tune';
 import { tokens } from '../theme';
 
 const labelSx = {
@@ -103,27 +104,13 @@ export default function ModifierEditor( { modifiers, onChange } ) {
 
 						<Stack spacing={ 0.75 }>
 							{ ( g.options || [] ).map( ( o, oi ) => (
-								<Stack key={ oi } direction="row" spacing={ 1 } alignItems="center">
-									<TextField
-										size="small"
-										placeholder={ g.type === 'remove' ? 'Ingredient (e.g. Onions)' : 'Option (e.g. Thin base)' }
-										value={ o.label }
-										onChange={ ( e ) => setOpt( gi, oi, { label: e.target.value } ) }
-										sx={ { flex: 1 } }
-									/>
-									{ g.type === 'choose' && (
-										<TextField
-											size="small"
-											placeholder="+ price"
-											value={ o.price }
-											onChange={ ( e ) => setOpt( gi, oi, { price: e.target.value } ) }
-											sx={ { width: 90 } }
-										/>
-									) }
-									<IconButton size="small" onClick={ () => removeOpt( gi, oi ) } sx={ { color: tokens.muted2 } }>
-										<DeleteOutlineIcon sx={ { fontSize: 16 } } />
-									</IconButton>
-								</Stack>
+								<OptionRow
+									key={ oi }
+									g={ g }
+									o={ o }
+									onChange={ ( patch ) => setOpt( gi, oi, patch ) }
+									onRemove={ () => removeOpt( gi, oi ) }
+								/>
 							) ) }
 							<Button size="small" startIcon={ <AddIcon /> } onClick={ () => addOpt( gi ) } sx={ { alignSelf: 'flex-start', color: tokens.muted } }>
 								Option
@@ -132,6 +119,46 @@ export default function ModifierEditor( { modifiers, onChange } ) {
 					</Box>
 				) ) }
 			</Stack>
+		</Box>
+	);
+}
+
+// One option row, with an optional (collapsed by default) cost + calories detail
+// so ingredient-level pricing/nutrition stays subtle until you want it.
+function OptionRow( { g, o, onChange, onRemove } ) {
+	const [ open, setOpen ] = React.useState( !! ( o.cost || o.calories ) );
+	return (
+		<Box>
+			<Stack direction="row" spacing={ 1 } alignItems="center">
+				<TextField
+					size="small"
+					placeholder={ g.type === 'remove' ? 'Ingredient (e.g. Onions)' : 'Option (e.g. Thin base)' }
+					value={ o.label }
+					onChange={ ( e ) => onChange( { label: e.target.value } ) }
+					sx={ { flex: 1 } }
+				/>
+				{ g.type === 'choose' && (
+					<TextField
+						size="small"
+						placeholder="+ price"
+						value={ o.price }
+						onChange={ ( e ) => onChange( { price: e.target.value } ) }
+						sx={ { width: 84 } }
+					/>
+				) }
+				<IconButton size="small" title="Cost &amp; calories (optional)" onClick={ () => setOpen( ( v ) => ! v ) } sx={ { color: open ? tokens.accent : tokens.muted2 } }>
+					<TuneIcon sx={ { fontSize: 16 } } />
+				</IconButton>
+				<IconButton size="small" onClick={ onRemove } sx={ { color: tokens.muted2 } }>
+					<DeleteOutlineIcon sx={ { fontSize: 16 } } />
+				</IconButton>
+			</Stack>
+			{ open && (
+				<Stack direction="row" spacing={ 1 } sx={ { mt: 0.75, pl: 0.5 } }>
+					<TextField size="small" placeholder="Cost" value={ o.cost || '' } onChange={ ( e ) => onChange( { cost: e.target.value } ) } sx={ { width: 100 } } />
+					<TextField size="small" placeholder="kcal" value={ o.calories || '' } onChange={ ( e ) => onChange( { calories: e.target.value } ) } sx={ { width: 100 } } />
+				</Stack>
+			) }
 		</Box>
 	);
 }

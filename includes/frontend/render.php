@@ -280,6 +280,18 @@ function render_item( $post, $args, $allergen_map ) {
 				<p class="dinekit-item__desc"><?php echo esc_html( wp_strip_all_tags( $post->post_content ) ); ?></p>
 			<?php endif; ?>
 
+			<?php
+			$dinekit_kcal = (int) get_post_meta( $post->ID, 'dinekit_calories', true );
+			if ( $dinekit_kcal > 0 ) :
+				?>
+				<p class="dinekit-item__kcal">
+					<?php
+					/* translators: %d: calorie count. */
+					echo esc_html( sprintf( __( '%d kcal', 'dinekit' ), $dinekit_kcal ) );
+					?>
+				</p>
+			<?php endif; ?>
+
 			<div class="dinekit-item__tags">
 				<?php
 				if ( $args['show_dietary'] ) {
@@ -293,21 +305,39 @@ function render_item( $post, $args, $allergen_map ) {
 				if ( $args['show_allergens'] ) {
 					$allergens = get_the_terms( $post, 'dinekit_allergen' );
 					if ( is_array( $allergens ) ) {
+						$src_sel  = json_decode( (string) get_post_meta( $post->ID, 'dinekit_allergen_sources', true ), true );
+						$src_opts = \DineKit\PostTypes\allergen_sources();
+						if ( ! is_array( $src_sel ) ) {
+							$src_sel = array();
+						}
 						echo '<span class="dinekit-allergens">';
 						foreach ( $allergens as $a ) {
 							$data = isset( $allergen_map[ $a->term_id ] ) ? $allergen_map[ $a->term_id ] : null;
 							if ( ! $data ) {
 								continue;
 							}
+							// Natasha's Law: append the specific source(s) — "gluten (wheat, barley)".
+							$label = $data['name'];
+							if ( ! empty( $src_sel[ $a->slug ] ) && isset( $src_opts[ $a->slug ] ) ) {
+								$names = array();
+								foreach ( (array) $src_sel[ $a->slug ] as $k ) {
+									if ( isset( $src_opts[ $a->slug ][ $k ] ) ) {
+										$names[] = $src_opts[ $a->slug ][ $k ];
+									}
+								}
+								if ( $names ) {
+									$label .= ' (' . implode( ', ', $names ) . ')';
+								}
+							}
 							if ( $data['icon'] ) {
 								printf(
 									'<img class="dinekit-allergen-icon" src="%s" alt="%s" title="%s" width="18" height="18" loading="lazy" />',
 									esc_url( $data['icon'] ),
-									esc_attr( $data['name'] ),
-									esc_attr( $data['name'] )
+									esc_attr( $label ),
+									esc_attr( $label )
 								);
 							} else {
-								printf( '<span class="dinekit-allergen-text" title="%1$s">%1$s</span>', esc_attr( $data['name'] ) );
+								printf( '<span class="dinekit-allergen-text" title="%1$s">%1$s</span>', esc_attr( $label ) );
 							}
 						}
 						echo '</span>';

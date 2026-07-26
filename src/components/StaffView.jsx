@@ -25,6 +25,7 @@ import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import EmptyState from './ui/EmptyState';
 import Card from './ui/Card';
+import ConfirmDialog from './ui/ConfirmDialog';
 import { ListSkeleton } from './ui/Skeletons';
 import PageTour from './PageTour';
 import StaffRota from './StaffRota';
@@ -37,6 +38,7 @@ export default function StaffView() {
 	const [ loading, setLoading ] = useState( true );
 	const [ editing, setEditing ] = useState( null ); // staff object being edited, or null.
 	const [ tab, setTab ] = useState( 'people' );
+	const [ confirmRemove, setConfirmRemove ] = useState( null ); // staff member pending removal.
 
 	useEffect( () => {
 		Promise.all( [ api.getStaff(), api.getStaffSettings() ] )
@@ -142,7 +144,7 @@ export default function StaffView() {
 									</Typography>
 								</Box>
 								<Chip label={ `${ m.holiday } days holiday` } size="small" sx={ { bgcolor: tokens.soft, color: tokens.muted, fontWeight: 600 } } />
-								<IconButton size="small" onClick={ ( e ) => { e.stopPropagation(); remove( m.id ); } } sx={ { color: tokens.muted2 } }>
+								<IconButton size="small" onClick={ ( e ) => { e.stopPropagation(); setConfirmRemove( m ); } } sx={ { color: tokens.muted2 } }>
 									<DeleteOutlineIcon fontSize="small" />
 								</IconButton>
 							</Stack>
@@ -157,7 +159,7 @@ export default function StaffView() {
 				onClose={ () => setEditing( null ) }
 				disableEnforceFocus
 				sx={ { zIndex: 100000 } }
-				PaperProps={ { sx: { width: { xs: '100%', sm: 400 } } } }
+				PaperProps={ { sx: {} } }
 			>
 				{ editing && (
 					<Box sx={ { p: 3 } }>
@@ -226,8 +228,8 @@ export default function StaffView() {
 									) }
 								</Box>
 							) }
-							<Tooltip title="Removes the member, their shifts and leave">
-								<Button color="error" size="small" startIcon={ <DeleteOutlineIcon /> } onClick={ () => remove( editing.id ) } sx={ { justifyContent: 'flex-start' } }>
+							<Tooltip title="Archives the member — they can be restored, and their shift & leave history is kept">
+								<Button color="error" size="small" startIcon={ <DeleteOutlineIcon /> } onClick={ () => setConfirmRemove( editing ) } sx={ { justifyContent: 'flex-start' } }>
 									Remove team member
 								</Button>
 							</Tooltip>
@@ -235,6 +237,14 @@ export default function StaffView() {
 					</Box>
 				) }
 			</Drawer>
+			<ConfirmDialog
+				open={ !! confirmRemove }
+				title={ confirmRemove ? `Remove ${ confirmRemove.name || 'this member' }?` : '' }
+				message="They're archived, not deleted — their shift & leave history is kept and they can be brought back later. They'll drop off the rota and team list."
+				confirmLabel="Remove"
+				onConfirm={ () => { const m = confirmRemove; setConfirmRemove( null ); if ( m ) { remove( m.id ); } } }
+				onCancel={ () => setConfirmRemove( null ) }
+			/>
 		</Page>
 	);
 }

@@ -198,6 +198,7 @@ export const api = {
 	updateEvent: ( id, data ) => request( 'PATCH', `events/${ id }`, data ),
 	deleteEvent: ( id ) => request( 'DELETE', `events/${ id }` ),
 	deleteGuest: ( eventId, guestId ) => request( 'DELETE', `events/${ eventId }/guests/${ guestId }` ),
+	updateGuest: ( eventId, guestId, data ) => request( 'PATCH', `events/${ eventId }/guests/${ guestId }`, data ),
 	getPages: async () => {
 		const res = await fetch( cfg.restRoot + 'wp/v2/pages?per_page=100&status=publish&_fields=id,link,title', {
 			credentials: 'same-origin',
@@ -205,6 +206,10 @@ export const api = {
 		} );
 		return res.ok ? res.json() : [];
 	},
+
+	// Live-sync heartbeat — one tiny call the poller uses to know which screens
+	// changed. Cache-busted so no layer pins a stale counter.
+	getSync: () => request( 'GET', `sync?_cb=${ Date.now() }` ),
 
 	// Notification center feed (local, actionable items).
 	getNotifications: () => request( 'GET', 'notifications' ),

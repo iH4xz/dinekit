@@ -8,6 +8,7 @@ import {
 	TextField,
 	Chip,
 	MenuItem,
+	Select,
 	Tooltip,
 	Divider,
 	Switch,
@@ -15,6 +16,7 @@ import {
 } from '../ui';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RestaurantIcon from '@mui/icons-material/Restaurant';
@@ -25,6 +27,7 @@ import { tokens } from '../theme';
 import { api } from '../api/client';
 import { prettyDate } from '../lib/bookings';
 import { printDoc, esc } from '../lib/print';
+import { copyToClipboard } from '../lib/clipboard';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import EmptyState from './ui/EmptyState';
@@ -120,9 +123,18 @@ export default function EventsView() {
 		select( selectedId );
 	};
 
+	// Staff edit a guest (typo in the name, wrong course, reassign company). Reload
+	// the event afterwards so the prep sheet + totals reflect the change. Errors
+	// (e.g. a numeric-only name) propagate to the row so it can show them inline.
+	const editGuest = async ( gid, data ) => {
+		await api.updateGuest( selectedId, gid, data );
+		const fresh = await api.getEvent( selectedId );
+		setDetail( fresh );
+	};
+
 	const onCopy = ( text ) => {
-		if ( text && navigator.clipboard ) {
-			navigator.clipboard.writeText( text ).then( () => setCopied( true ) );
+		if ( text ) {
+			copyToClipboard( text ).then( () => setCopied( true ) );
 		}
 	};
 
@@ -220,6 +232,7 @@ export default function EventsView() {
 								onPatch={ patch }
 								onDelete={ () => removeEvent( detail.id ) }
 								onRemoveGuest={ removeGuest }
+								onEditGuest={ editGuest }
 								onCopy={ onCopy }
 								dayLoad={ { seats, booked: dayCovers, thisEvent: eventCovers( detail ) } }
 							/>
@@ -267,7 +280,7 @@ function DateBadge( { date, active } ) {
 	);
 }
 
-function EventDetail( { detail, menus, onPatch, onDelete, onRemoveGuest, onCopy, dayLoad } ) {
+function EventDetail( { detail, menus, onPatch, onDelete, onRemoveGuest, onEditGuest, onCopy, dayLoad } ) {
 	const published = detail.status === 'published';
 	const groups = detail.groups || [];
 	const groupName = ( gid ) => ( groups.find( ( g ) => g.id === gid ) || {} ).name || '';
@@ -515,28 +528,125 @@ function EventDetail( { detail, menus, onPatch, onDelete, onRemoveGuest, onCopy,
 					<Typography variant="subtitle2" sx={ { color: tokens.ink, mb: 1 } }>Guests</Typography>
 					<Stack spacing={ 1 }>
 						{ detail.guests.map( ( g ) => (
-							<Stack key={ g.id } direction="row" alignItems="center" spacing={ 1.5 } sx={ { bgcolor: tokens.soft, borderRadius: 2, p: 1.25 } }>
-								<Box sx={ { flex: 1, minWidth: 0 } }>
-									<Stack direction="row" alignItems="center" spacing={ 0.75 }>
-										<Typography sx={ { fontWeight: 700, fontSize: 14 } }>{ g.name }</Typography>
-										{ g.group && groupName( g.group ) && (
-											<Chip label={ groupName( g.group ) } size="small" sx={ { height: 18, fontSize: 10, fontWeight: 600, bgcolor: tokens.accentSoft, color: tokens.accentDark } } />
-										) }
-									</Stack>
-									<Typography sx={ { fontSize: 12, color: tokens.muted } } noWrap>
-										{ Object.values( g.selections ).map( ( id ) => itemName( id ) ).join( ' · ' ) || 'No choices' }
-										{ g.notes ? ` — ${ g.notes }` : '' }
-									</Typography>
-								</Box>
-								{ g.allergens.length > 0 && (
-									<Chip label={ `${ g.allergens.length } allergen${ g.allergens.length === 1 ? '' : 's' }` } size="small" sx={ { bgcolor: tokens.amberSoft, color: tokens.amber, fontWeight: 600 } } />
-								) }
-								<IconButton size="small" onClick={ () => onRemoveGuest( g.id ) } sx={ { color: tokens.muted2 } }><DeleteOutlineIcon fontSize="small" /></IconButton>
-							</Stack>
+							<GuestRow
+								key={ g.id }
+								guest={ g }
+								groups={ groups }
+								courses={ detail.courses || [] }
+								itemName={ itemName }
+								groupName={ groupName }
+								onSave={ onEditGuest }
+								onRemove={ () => onRemoveGuest( g.id ) }
+							/>
 						) ) }
 					</Stack>
 				</>
 			) }
 		</Box>
+	);
+}
+
+/**
+ * One guest in the event's guest list. Read-only by default; click the pencil to
+ * fix a typo in the name, correct a course choice, reassign a company, or edit
+ * notes. Names must contain a letter — the server rejects numeric-only names.
+ */
+function GuestRow( { guest, groups, courses, itemName, groupName, onSave, onRemove } ) {
+	const [ editing, setEditing ] = useState( false );
+	const [ name, setName ] = useState( guest.name );
+	const [ group, setGroup ] = useState( guest.group || '' );
+	const [ selections, setSelections ] = useState( guest.selections || {} );
+	const [ notes, setNotes ] = useState( guest.notes || '' );
+	const [ err, setErr ] = useState( '' );
+	const [ busy, setBusy ] = useState( false );
+
+	const start = () => {
+		setName( guest.name );
+		setGroup( guest.group || '' );
+		setSelections( guest.selections || {} );
+		setNotes( guest.notes || '' );
+		setErr( '' );
+		setEditing( true );
+	};
+	const save = async () => {
+		if ( ! /\p{L}/u.test( name || '' ) ) {
+			setErr( 'Please enter a real name, not just a number.' );
+			return;
+		}
+		setBusy( true );
+		setErr( '' );
+		try {
+			await onSave( guest.id, { name: name.trim(), group, selections, notes } );
+			setEditing( false );
+		} catch ( e ) {
+			setErr( ( e && e.message ) || 'Could not save the guest.' );
+		} finally {
+			setBusy( false );
+		}
+	};
+
+	if ( editing ) {
+		return (
+			<Box sx={ { bgcolor: tokens.soft, borderRadius: 2, p: 1.5, border: `1px solid ${ tokens.accent }` } }>
+				<Stack spacing={ 1.25 }>
+					<Stack direction="row" spacing={ 1 } flexWrap="wrap" useFlexGap>
+						<TextField label="Name" size="small" value={ name } onChange={ ( e ) => setName( e.target.value ) } sx={ { flex: 1, minWidth: 160 } } />
+						{ groups.length > 0 && (
+							<Select size="small" value={ group } displayEmpty onChange={ ( e ) => setGroup( e.target.value ) } sx={ { minWidth: 150 } }>
+								<MenuItem value="">No company</MenuItem>
+								{ groups.map( ( gr ) => (
+									<MenuItem key={ gr.id } value={ gr.id }>{ gr.name }</MenuItem>
+								) ) }
+							</Select>
+						) }
+					</Stack>
+					{ courses.map( ( c ) => (
+						<Stack key={ c.id } direction="row" alignItems="center" spacing={ 1 }>
+							<Typography sx={ { fontSize: 12.5, color: tokens.muted, width: 100, flexShrink: 0 } } noWrap>{ c.name || 'Course' }</Typography>
+							<Select
+								size="small"
+								value={ selections[ c.id ] || '' }
+								displayEmpty
+								onChange={ ( e ) => setSelections( ( s ) => ( { ...s, [ c.id ]: e.target.value } ) ) }
+								sx={ { flex: 1 } }
+							>
+								<MenuItem value="">No choice</MenuItem>
+								{ c.items.map( ( it ) => (
+									<MenuItem key={ it.id } value={ it.id }>{ it.title }</MenuItem>
+								) ) }
+							</Select>
+						</Stack>
+					) ) }
+					<TextField label="Notes" size="small" value={ notes } onChange={ ( e ) => setNotes( e.target.value ) } multiline />
+					{ err && <Typography sx={ { fontSize: 12.5, color: tokens.red } }>{ err }</Typography> }
+					<Stack direction="row" spacing={ 1 } justifyContent="flex-end">
+						<Button size="small" onClick={ () => setEditing( false ) } disabled={ busy }>Cancel</Button>
+						<Button size="small" variant="contained" onClick={ save } disabled={ busy }>Save</Button>
+					</Stack>
+				</Stack>
+			</Box>
+		);
+	}
+
+	return (
+		<Stack direction="row" alignItems="center" spacing={ 1.5 } sx={ { bgcolor: tokens.soft, borderRadius: 2, p: 1.25 } }>
+			<Box sx={ { flex: 1, minWidth: 0 } }>
+				<Stack direction="row" alignItems="center" spacing={ 0.75 }>
+					<Typography sx={ { fontWeight: 700, fontSize: 14 } }>{ guest.name }</Typography>
+					{ guest.group && groupName( guest.group ) && (
+						<Chip label={ groupName( guest.group ) } size="small" sx={ { height: 18, fontSize: 10, fontWeight: 600, bgcolor: tokens.accentSoft, color: tokens.accentDark } } />
+					) }
+				</Stack>
+				<Typography sx={ { fontSize: 12, color: tokens.muted } } noWrap>
+					{ Object.values( guest.selections ).map( ( id ) => itemName( id ) ).join( ' · ' ) || 'No choices' }
+					{ guest.notes ? ` — ${ guest.notes }` : '' }
+				</Typography>
+			</Box>
+			{ guest.allergens.length > 0 && (
+				<Chip label={ `${ guest.allergens.length } allergen${ guest.allergens.length === 1 ? '' : 's' }` } size="small" sx={ { bgcolor: tokens.amberSoft, color: tokens.amber, fontWeight: 600 } } />
+			) }
+			<IconButton size="small" onClick={ start } sx={ { color: tokens.muted2 } }><EditOutlinedIcon fontSize="small" /></IconButton>
+			<IconButton size="small" onClick={ onRemove } sx={ { color: tokens.muted2 } }><DeleteOutlineIcon fontSize="small" /></IconButton>
+		</Stack>
 	);
 }

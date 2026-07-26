@@ -49,6 +49,8 @@ delete_option( 'dinekit_roles_ready' );
 delete_option( 'dinekit_support_token' );
 delete_option( 'dinekit_support_identity' );
 delete_option( 'dinekit_review_ask' );
+delete_option( 'dinekit_pwa_rewrites' );
+delete_option( 'dinekit_sync' );
 
 // Remove the custom staff role + the DineKit page capability we granted.
 if ( function_exists( 'remove_role' ) ) {

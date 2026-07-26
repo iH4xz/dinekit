@@ -268,7 +268,7 @@ function GuestProfileDrawer( { guest, onClose, onSaved } ) {
 			// Sit above the WP admin bar (99999) so the drawer isn't hidden behind it.
 			disableEnforceFocus
 			sx={ { zIndex: 100000 } }
-			PaperProps={ { sx: { width: { xs: '100%', sm: 400 } } } }
+			PaperProps={ { sx: {} } }
 		>
 			{ guest && (
 				<Box sx={ { p: 3, display: 'flex', flexDirection: 'column', height: '100%' } }>

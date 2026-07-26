@@ -36,7 +36,7 @@ function categories() {
 		'refund'   => __( 'Refunds & voids', 'dinekit' ),
 		'order'    => __( 'Orders', 'dinekit' ),
 		'booking'  => __( 'Bookings', 'dinekit' ),
-		'payments' => __( 'Payments setup', 'dinekit' ),
+		'payments' => __( 'Payment settings', 'dinekit' ),
 		'access'   => __( 'Access & staff', 'dinekit' ),
 		'login'    => __( 'Sign-ins', 'dinekit' ),
 	);
@@ -74,8 +74,8 @@ function register_cpt() {
  * @return void
  */
 function log( $action, $label, $details = '' ) {
-	$user = wp_get_current_user();
-	$name = $user && $user->ID ? ( $user->display_name ? $user->display_name : $user->user_login ) : __( 'System', 'dinekit' );
+	$user    = wp_get_current_user();
+	$name    = $user && $user->ID ? ( $user->display_name ? $user->display_name : $user->user_login ) : __( 'System', 'dinekit' );
 	$post_id = wp_insert_post(
 		array(
 			'post_type'   => 'dinekit_activity',

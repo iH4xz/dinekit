@@ -247,6 +247,8 @@ function taxKey( tax ) {
 			return 'sections';
 		case 'dinekit_dietary':
 			return 'dietary';
+		case 'dinekit_allergen':
+			return 'allergens';
 		default:
 			return 'sections';
 	}

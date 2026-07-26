@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, CircularProgress, Alert } from './ui';
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 import PaletteIcon from '@mui/icons-material/Palette';
@@ -48,6 +48,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import SupportView from './components/SupportView';
 import Wizard from './components/Wizard';
+import { startSync } from './lib/useSync';
 
 // Grouped so the sidebar reads like a product, not a feature dump.
 const NAV = [
@@ -122,6 +123,12 @@ export default function App() {
 	const store = useDineKit();
 	const [ navCollapsed, setNavCollapsed ] = useState( false );
 
+	// Boot the shared live-sync poller once, so every screen can react to changes
+	// made on other tablets without pounding the server on individual timers.
+	useEffect( () => {
+		startSync();
+	}, [] );
+
 	// First run: guide the owner through the setup wizard before anything else.
 	if ( ! store.loading && store.data && ! store.data.onboarded ) {
 		return (
@@ -134,9 +141,11 @@ export default function App() {
 	const caps = ( window.DINEKIT && window.DINEKIT.caps ) || ALL_CAPS;
 	const nav = visibleNav( store.data && store.data.businessType, caps );
 	const activeView = nav.some( ( n ) => n.key === view ) ? view : 'home';
+	// Installed/standalone app has no wp-admin bar, so fill the full viewport.
+	const shellHeight = window.DINEKIT && window.DINEKIT.standalone ? '100vh' : 'calc(100vh - 32px)';
 
 	return (
-		<Box sx={ { display: 'flex', minHeight: 'calc(100vh - 32px)', bgcolor: tokens.bg } }>
+		<Box sx={ { display: 'flex', minHeight: shellHeight, bgcolor: tokens.bg } }>
 			<Sidebar
 				nav={ nav }
 				view={ activeView }

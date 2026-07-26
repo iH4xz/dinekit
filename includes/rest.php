@@ -40,7 +40,10 @@ function init() {
  * @return string[]
  */
 function managed_taxonomies() {
-	return array( 'dinekit_menu', 'dinekit_section', 'dinekit_dietary' );
+	// Allergens are managed too, so venues can add their OWN allergens (e.g. a
+	// regional one) — but the 14 legal core allergens are protected from
+	// rename/delete in update_term()/delete_term().
+	return array( 'dinekit_menu', 'dinekit_section', 'dinekit_dietary', 'dinekit_allergen' );
 }
 
 /**
@@ -904,6 +907,8 @@ function term_response( $term ) {
 		'name'  => $term->name,
 		'slug'  => $term->slug,
 		'count' => (int) $term->count,
+		// A legally-required core allergen (seeded) — can't be renamed/deleted.
+		'core'  => (bool) get_term_meta( $term->term_id, 'dinekit_core_allergen', true ),
 	);
 }
 
@@ -967,20 +972,24 @@ function item_response( $post ) {
 	}
 
 	return array(
-		'id'          => (int) $post->ID,
-		'title'       => $post->post_title,
-		'description' => (string) $post->post_content,
-		'status'      => $post->post_status,
-		'order'       => (int) $post->menu_order,
-		'prices'      => array_values( $prices ),
-		'modifiers'   => array_values( $modifiers ),
-		'badge'       => (string) get_post_meta( $post->ID, 'dinekit_badge', true ),
-		'station'     => 'bar' === get_post_meta( $post->ID, 'dinekit_station', true ) ? 'bar' : 'kitchen',
-		'sections'    => $term_ids( 'dinekit_section' ),
-		'menus'       => $term_ids( 'dinekit_menu' ),
-		'dietary'     => $term_ids( 'dinekit_dietary' ),
-		'allergens'   => $term_ids( 'dinekit_allergen' ),
-		'image'       => $image,
+		'id'              => (int) $post->ID,
+		'title'           => $post->post_title,
+		'description'     => (string) $post->post_content,
+		'status'          => $post->post_status,
+		'order'           => (int) $post->menu_order,
+		'prices'          => array_values( $prices ),
+		'modifiers'       => array_values( $modifiers ),
+		'badge'           => (string) get_post_meta( $post->ID, 'dinekit_badge', true ),
+		'station'         => 'bar' === get_post_meta( $post->ID, 'dinekit_station', true ) ? 'bar' : 'kitchen',
+		'available'       => 'out' !== (string) get_post_meta( $post->ID, 'dinekit_stock', true ),
+		'sections'        => $term_ids( 'dinekit_section' ),
+		'menus'           => $term_ids( 'dinekit_menu' ),
+		'dietary'         => $term_ids( 'dinekit_dietary' ),
+		'allergens'       => $term_ids( 'dinekit_allergen' ),
+		'allergenSources' => (array) json_decode( (string) get_post_meta( $post->ID, 'dinekit_allergen_sources', true ), true ),
+		'calories'        => (int) get_post_meta( $post->ID, 'dinekit_calories', true ),
+		'cost'            => (string) get_post_meta( $post->ID, 'dinekit_cost', true ),
+		'image'           => $image,
 	);
 }
 
@@ -1085,16 +1094,20 @@ function get_state() {
 
 	return rest_ensure_response(
 		array(
-			'menus'        => $menus,
-			'sections'     => $sections,
-			'dietary'      => $dietary,
-			'allergens'    => $allergens,
-			'items'        => $items,
-			'archived'     => $archived_items,
-			'menuPage'     => $menu_page,
-			'siteName'     => get_bloginfo( 'name' ),
-			'businessType' => \DineKit\Settings\get()['businessType'],
-			'onboarded'    => (bool) get_option( 'dinekit_onboarded' ),
+			'menus'                 => $menus,
+			'sections'              => $sections,
+			'dietary'               => $dietary,
+			'allergens'             => $allergens,
+			'allergenSourceOptions' => \DineKit\PostTypes\allergen_sources(),
+			'items'                 => $items,
+			'archived'              => $archived_items,
+			'menuPage'              => $menu_page,
+			'siteName'              => get_bloginfo( 'name' ),
+			'businessType'          => \DineKit\Settings\get()['businessType'],
+			'onboarded'             => (bool) get_option( 'dinekit_onboarded' ),
+			'currency'              => isset( \DineKit\Settings\get()['currency'] ) ? \DineKit\Settings\get()['currency'] : '£',
+			'currencyPosition'      => isset( \DineKit\Settings\get()['currencyPosition'] ) ? \DineKit\Settings\get()['currencyPosition'] : 'before',
+			'servicePct'            => (float) \DineKit\Ordering\get_settings()['service_pct'],
 		)
 	);
 }
@@ -1206,6 +1219,37 @@ function apply_item_fields( $post_id, $request ) {
 	}
 	if ( null !== $request->get_param( 'station' ) ) {
 		update_post_meta( $post_id, 'dinekit_station', 'bar' === $request->get_param( 'station' ) ? 'bar' : 'kitchen' );
+	}
+	if ( null !== $request->get_param( 'available' ) ) {
+		// Availability is stored as the 86 flag: '' = available, 'out' = 86'd.
+		update_post_meta( $post_id, 'dinekit_stock', $request->get_param( 'available' ) ? '' : 'out' );
+	}
+	if ( null !== $request->get_param( 'calories' ) ) {
+		update_post_meta( $post_id, 'dinekit_calories', max( 0, absint( $request->get_param( 'calories' ) ) ) );
+	}
+	if ( null !== $request->get_param( 'cost' ) ) {
+		// Private cost-to-make (never shown to diners) — used for gross-profit.
+		$cost = preg_replace( '/[^0-9.]/', '', (string) $request->get_param( 'cost' ) );
+		update_post_meta( $post_id, 'dinekit_cost', '' === $cost ? '' : (string) round( (float) $cost, 2 ) );
+	}
+	if ( null !== $request->get_param( 'allergenSources' ) ) {
+		// Which specific cereal/nut per allergen (Natasha's Law). Validate hard:
+		// only known allergen slugs and known source keys are stored.
+		$src     = $request->get_param( 'allergenSources' );
+		$options = \DineKit\PostTypes\allergen_sources();
+		$clean   = array();
+		if ( is_array( $src ) ) {
+			foreach ( $src as $slug => $keys ) {
+				$slug = sanitize_key( $slug );
+				if ( isset( $options[ $slug ] ) && is_array( $keys ) ) {
+					$valid = array_values( array_intersect( array_map( 'sanitize_key', $keys ), array_keys( $options[ $slug ] ) ) );
+					if ( $valid ) {
+						$clean[ $slug ] = $valid;
+					}
+				}
+			}
+		}
+		update_post_meta( $post_id, 'dinekit_allergen_sources', wp_json_encode( $clean ) );
 	}
 
 	$taxonomy_params = array(
@@ -1488,6 +1532,9 @@ function update_term( $request ) {
 	if ( '' === $name ) {
 		return new \WP_Error( 'dinekit_term_name', __( 'A name is required.', 'dinekit' ), array( 'status' => 400 ) );
 	}
+	if ( 'dinekit_allergen' === $taxonomy && get_term_meta( $term_id, 'dinekit_core_allergen', true ) ) {
+		return new \WP_Error( 'dinekit_core_allergen', __( 'The 14 legal allergens can’t be renamed.', 'dinekit' ), array( 'status' => 403 ) );
+	}
 
 	$result = wp_update_term( $term_id, $taxonomy, array( 'name' => $name ) );
 	if ( is_wp_error( $result ) ) {
@@ -1505,6 +1552,9 @@ function update_term( $request ) {
  * @return \WP_REST_Response|\WP_Error
  */
 function delete_term( $request ) {
+	if ( 'dinekit_allergen' === (string) $request['tax'] && get_term_meta( (int) $request['id'], 'dinekit_core_allergen', true ) ) {
+		return new \WP_Error( 'dinekit_core_allergen', __( 'The 14 legal allergens can’t be deleted.', 'dinekit' ), array( 'status' => 403 ) );
+	}
 	$result = wp_delete_term( (int) $request['id'], (string) $request['tax'] );
 	if ( is_wp_error( $result ) ) {
 		return $result;

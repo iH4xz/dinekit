@@ -106,6 +106,14 @@
 	max-width: 60ch;
 }
 
+.dinekit-item__kcal {
+	color: var(--dinekit-muted);
+	font-size: 0.78rem;
+	letter-spacing: 0.02em;
+	margin: 0.2rem 0 0;
+	opacity: 0.85;
+}
+
 .dinekit-item__tags {
 	display: flex;
 	flex-wrap: wrap;

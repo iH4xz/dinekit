@@ -730,27 +730,18 @@ function update_staff( $request ) {
  */
 function delete_staff( $request ) {
 	$id = (int) $request['id'];
-	foreach ( array(
-		'dinekit_shift' => 'dinekit_shift_staff',
-		'dinekit_leave' => 'dinekit_leave_staff',
-	) as $type => $key ) {
-		$rows = get_posts(
-			array(
-				'post_type'      => $type,
-				'post_status'    => 'publish',
-				'posts_per_page' => 500, // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- clean up all of one member's rows.
-				'no_found_rows'  => true,
-				'fields'         => 'ids',
-				'meta_key'       => $key, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-				'meta_value'     => $id, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
-			)
-		);
-		foreach ( $rows as $row ) {
-			wp_delete_post( $row, true );
-		}
-	}
-	wp_delete_post( $id, true );
-	return rest_ensure_response( array( 'deleted' => true ) );
+	// Archive, don't destroy. Staff — and their shift + leave history — are never
+	// hard-deleted, so a member removed by mistake can be brought back and their
+	// past rota/pay record survives. Draft status drops them from the roster
+	// (all_staff() queries publish only); their shifts + leave stay intact.
+	wp_update_post(
+		array(
+			'ID'          => $id,
+			'post_status' => 'draft',
+		)
+	);
+	update_post_meta( $id, 'dinekit_staff_archived', current_time( 'mysql' ) );
+	return rest_ensure_response( array( 'archived' => true ) );
 }
 
 /**

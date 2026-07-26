@@ -89,6 +89,16 @@ function HoursStep( { week, setWeek } ) {
 			return { ...w, [ key ]: [ { ...base, ...patch } ] };
 		} );
 
+	// Copy one day's hours to every day — saves setting all seven by hand. (Split
+	// services like breakfast + dinner can be added later in Opening Hours.)
+	const copyToAll = ( key ) =>
+		setWeek( ( w ) => {
+			const src = ( w[ key ] || [] ).map( ( p ) => ( { ...p } ) );
+			const next = { ...w };
+			DAYS.forEach( ( [ d ] ) => { next[ d ] = src.map( ( p ) => ( { ...p } ) ); } );
+			return next;
+		} );
+
 	return (
 		<Stack spacing={ 0.75 } sx={ { width: '100%', maxWidth: 460 } }>
 			{ DAYS.map( ( [ key, label ] ) => {
@@ -127,6 +137,14 @@ function HoursStep( { week, setWeek } ) {
 								/>
 							</Stack>
 						) }
+						<Button
+							variant="text" size="small"
+							onClick={ () => copyToAll( key ) }
+							sx={ { color: tokens.muted2, minWidth: 0, px: 0.75, fontSize: 12 } }
+							title="Copy this day's hours to every day"
+						>
+							Copy to all
+						</Button>
 						<Button
 							variant="text" size="small"
 							onClick={ () => setDay( key, closed ? { open: '12:00', close: '22:00' } : { closed: true } ) }
