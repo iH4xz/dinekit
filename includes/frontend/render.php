@@ -35,6 +35,8 @@ function defaults() {
 		'show_dietary'      => true,
 		'show_matrix'       => true,
 		'show_filter'       => true,
+		'filter_style'      => 'chips',  // chips | dropdown.
+		'allergen_display'  => 'icons',  // icons | text | codes.
 		'currency'          => $settings['currency'],
 		'currency_position' => $settings['currencyPosition'],
 		'accent'            => $settings['accent'],
@@ -148,9 +150,12 @@ function menu( $args = array() ) {
 	$layout       = in_array( $args['layout'], array( 'list', 'grid', 'chalkboard' ), true ) ? $args['layout'] : 'list';
 	$columns      = max( 0, min( 4, (int) $args['columns'] ) );
 	$col_class    = $columns > 0 ? ' dinekit-menu--cols-' . $columns : '';
-	$template     = ! empty( $args['template'] ) ? (string) $args['template'] : \DineKit\Settings\get()['template'];
-	$template     = in_array( $template, \DineKit\Settings\templates(), true ) ? $template : 'maison';
-	$tpl_class    = ' dinekit-menu--tpl-' . $template;
+	$filter_style = in_array( $args['filter_style'], array( 'chips', 'dropdown' ), true ) ? $args['filter_style'] : 'chips';
+	// Normalised once and read back inside render_item().
+	$args['allergen_display'] = in_array( $args['allergen_display'], array( 'icons', 'text', 'codes' ), true ) ? $args['allergen_display'] : 'icons';
+	$template                 = ! empty( $args['template'] ) ? (string) $args['template'] : \DineKit\Settings\get()['template'];
+	$template                 = in_array( $template, \DineKit\Settings\templates(), true ) ? $template : 'maison';
+	$tpl_class                = ' dinekit-menu--tpl-' . $template;
 
 	$groups = $structure['sections'];
 	if ( $structure['loose'] ) {
@@ -169,7 +174,7 @@ function menu( $args = array() ) {
 	>
 		<?php
 		if ( $args['show_filter'] ) {
-			echo render_filter_bar( $groups, $allergen_map ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			echo render_filter_bar( $groups, $allergen_map, $filter_style ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		}
 		?>
 		<div class="dinekit-menu__items">
@@ -329,15 +334,21 @@ function render_item( $post, $args, $allergen_map ) {
 									$label .= ' (' . implode( ', ', $names ) . ')';
 								}
 							}
-							if ( $data['icon'] ) {
+							$display = $args['allergen_display'];
+							if ( 'icons' === $display && $data['icon'] ) {
 								printf(
 									'<img class="dinekit-allergen-icon" src="%s" alt="%s" title="%s" width="18" height="18" loading="lazy" />',
 									esc_url( $data['icon'] ),
 									esc_attr( $label ),
 									esc_attr( $label )
 								);
+							} elseif ( 'codes' === $display ) {
+								// A short letter code (first three letters of the base name) — the
+								// compact convention many non-UK menus use.
+								$code = strtoupper( substr( (string) preg_replace( '/[^\p{L}]/u', '', $data['name'] ), 0, 3 ) );
+								printf( '<span class="dinekit-allergen-text dinekit-allergen-code" title="%s">%s</span>', esc_attr( $label ), esc_html( $code ) );
 							} else {
-								printf( '<span class="dinekit-allergen-text" title="%1$s">%1$s</span>', esc_attr( $label ) );
+								printf( '<span class="dinekit-allergen-text" title="%s">%s</span>', esc_attr( $label ), esc_html( $label ) );
 							}
 						}
 						echo '</span>';
@@ -360,7 +371,7 @@ function render_item( $post, $args, $allergen_map ) {
  * @param array<int,array>  $allergen_map Allergen term data keyed by id.
  * @return string
  */
-function render_filter_bar( $groups, $allergen_map ) {
+function render_filter_bar( $groups, $allergen_map, $style = 'chips' ) {
 	$diet_used     = array();
 	$allergen_used = array();
 	foreach ( $groups as $group ) {
@@ -388,32 +399,58 @@ function render_filter_bar( $groups, $allergen_map ) {
 	ksort( $diet_used );
 	ksort( $allergen_used );
 
+	$dropdown = ( 'dropdown' === $style );
 	ob_start();
 	?>
-	<div class="dinekit-filter" data-dinekit-filter>
-		<?php if ( $diet_used ) : ?>
-			<div class="dinekit-filter__group">
-				<span class="dinekit-filter__label"><?php esc_html_e( 'Show only', 'dinekit' ); ?></span>
-				<?php foreach ( $diet_used as $slug => $name ) : ?>
-					<button type="button" class="dinekit-filter__chip" data-diet="<?php echo esc_attr( $slug ); ?>">
-						<?php echo esc_html( $name ); ?>
-					</button>
-				<?php endforeach; ?>
-			</div>
-		<?php endif; ?>
+	<div class="dinekit-filter<?php echo $dropdown ? ' dinekit-filter--dropdown' : ''; ?>" data-dinekit-filter>
+		<?php if ( $dropdown ) : ?>
+			<?php if ( $diet_used ) : ?>
+				<label class="dinekit-filter__group">
+					<span class="dinekit-filter__label"><?php esc_html_e( 'Show only', 'dinekit' ); ?></span>
+					<select class="dinekit-filter__select" data-diet-select>
+						<option value=""><?php esc_html_e( 'All dishes', 'dinekit' ); ?></option>
+						<?php foreach ( $diet_used as $slug => $name ) : ?>
+							<option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $name ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+			<?php endif; ?>
+			<?php if ( $allergen_used ) : ?>
+				<label class="dinekit-filter__group">
+					<span class="dinekit-filter__label"><?php esc_html_e( 'Avoid', 'dinekit' ); ?></span>
+					<select class="dinekit-filter__select" data-allergen-select>
+						<option value=""><?php esc_html_e( 'Nothing', 'dinekit' ); ?></option>
+						<?php foreach ( $allergen_used as $slug => $name ) : ?>
+							<option value="<?php echo esc_attr( $slug ); ?>"><?php echo esc_html( $name ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</label>
+			<?php endif; ?>
+		<?php else : ?>
+			<?php if ( $diet_used ) : ?>
+				<div class="dinekit-filter__group">
+					<span class="dinekit-filter__label"><?php esc_html_e( 'Show only', 'dinekit' ); ?></span>
+					<?php foreach ( $diet_used as $slug => $name ) : ?>
+						<button type="button" class="dinekit-filter__chip" data-diet="<?php echo esc_attr( $slug ); ?>">
+							<?php echo esc_html( $name ); ?>
+						</button>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
 
-		<?php if ( $allergen_used ) : ?>
-			<div class="dinekit-filter__group">
-				<span class="dinekit-filter__label"><?php esc_html_e( 'Avoid', 'dinekit' ); ?></span>
-				<?php foreach ( $allergen_used as $slug => $name ) : ?>
-					<button type="button" class="dinekit-filter__chip dinekit-filter__chip--avoid" data-allergen="<?php echo esc_attr( $slug ); ?>">
-						<?php echo esc_html( $name ); ?>
-					</button>
-				<?php endforeach; ?>
-			</div>
-		<?php endif; ?>
+			<?php if ( $allergen_used ) : ?>
+				<div class="dinekit-filter__group">
+					<span class="dinekit-filter__label"><?php esc_html_e( 'Avoid', 'dinekit' ); ?></span>
+					<?php foreach ( $allergen_used as $slug => $name ) : ?>
+						<button type="button" class="dinekit-filter__chip dinekit-filter__chip--avoid" data-allergen="<?php echo esc_attr( $slug ); ?>">
+							<?php echo esc_html( $name ); ?>
+						</button>
+					<?php endforeach; ?>
+				</div>
+			<?php endif; ?>
 
-		<button type="button" class="dinekit-filter__clear" hidden><?php esc_html_e( 'Clear', 'dinekit' ); ?></button>
+			<button type="button" class="dinekit-filter__clear" hidden><?php esc_html_e( 'Clear', 'dinekit' ); ?></button>
+		<?php endif; ?>
 	</div>
 	<?php
 	return (string) ob_get_clean();

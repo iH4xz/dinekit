@@ -585,14 +585,16 @@ function get_preview( $request ) {
 	};
 	$html   = \DineKit\Render\menu(
 		array(
-			'layout'         => (string) $request->get_param( 'layout' ),
-			'columns'        => (int) $request->get_param( 'columns' ),
-			'template'       => sanitize_key( (string) $request->get_param( 'template' ) ),
-			'show_images'    => $truthy( $request->get_param( 'images' ) ),
-			'show_allergens' => $truthy( $request->get_param( 'allergens' ) ),
-			'show_dietary'   => $truthy( $request->get_param( 'dietary' ) ),
-			'show_matrix'    => $truthy( $request->get_param( 'matrix' ) ),
-			'show_filter'    => $truthy( $request->get_param( 'filter' ) ),
+			'layout'           => (string) $request->get_param( 'layout' ),
+			'columns'          => (int) $request->get_param( 'columns' ),
+			'template'         => sanitize_key( (string) $request->get_param( 'template' ) ),
+			'show_images'      => $truthy( $request->get_param( 'images' ) ),
+			'show_allergens'   => $truthy( $request->get_param( 'allergens' ) ),
+			'show_dietary'     => $truthy( $request->get_param( 'dietary' ) ),
+			'show_matrix'      => $truthy( $request->get_param( 'matrix' ) ),
+			'show_filter'      => $truthy( $request->get_param( 'filter' ) ),
+			'filter_style'     => (string) $request->get_param( 'filter_style' ),
+			'allergen_display' => (string) $request->get_param( 'allergen_display' ),
 		)
 	);
 	return rest_ensure_response(

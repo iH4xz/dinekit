@@ -53,51 +53,61 @@ function roles() {
 			'key'   => 'manager',
 			'label' => __( 'Manager', 'dinekit' ),
 			'area'  => 'both',
+			'color' => '#4f46e5',
 		),
 		array(
 			'key'   => 'server',
 			'label' => __( 'Server / waiter', 'dinekit' ),
 			'area'  => 'foh',
+			'color' => '#0284c7',
 		),
 		array(
 			'key'   => 'host',
 			'label' => __( 'Host / front desk', 'dinekit' ),
 			'area'  => 'foh',
+			'color' => '#0d9488',
 		),
 		array(
 			'key'   => 'runner',
 			'label' => __( 'Runner', 'dinekit' ),
 			'area'  => 'foh',
+			'color' => '#0891b2',
 		),
 		array(
 			'key'   => 'bartender',
 			'label' => __( 'Bartender', 'dinekit' ),
 			'area'  => 'foh',
+			'color' => '#7c3aed',
 		),
 		array(
 			'key'   => 'chef',
 			'label' => __( 'Chef', 'dinekit' ),
 			'area'  => 'boh',
+			'color' => '#d97706',
 		),
 		array(
 			'key'   => 'kitchen',
 			'label' => __( 'Kitchen / line', 'dinekit' ),
 			'area'  => 'boh',
+			'color' => '#ea580c',
 		),
 		array(
 			'key'   => 'kp',
 			'label' => __( 'Kitchen porter', 'dinekit' ),
 			'area'  => 'boh',
+			'color' => '#78716c',
 		),
 		array(
 			'key'   => 'driver',
 			'label' => __( 'Delivery driver', 'dinekit' ),
 			'area'  => 'foh',
+			'color' => '#059669',
 		),
 		array(
 			'key'   => 'other',
 			'label' => __( 'Other', 'dinekit' ),
 			'area'  => 'both',
+			'color' => '#64748b',
 		),
 	);
 }
@@ -220,14 +230,15 @@ function register() {
 
 	$meta = array(
 		'dinekit_staff' => array(
-			'dinekit_role'    => 'string',
-			'dinekit_area'    => 'string',
-			'dinekit_email'   => 'string',
-			'dinekit_phone'   => 'string',
-			'dinekit_rate'    => 'string', // Hourly rate (decimal string).
-			'dinekit_holiday' => 'integer', // Annual holiday allowance, days.
-			'dinekit_color'   => 'string',
-			'dinekit_active'  => 'integer', // 1 | 0.
+			'dinekit_role'       => 'string',
+			'dinekit_area'       => 'string',
+			'dinekit_email'      => 'string',
+			'dinekit_phone'      => 'string',
+			'dinekit_rate'       => 'string', // Hourly rate (decimal string).
+			'dinekit_holiday'    => 'integer', // Annual holiday allowance, days.
+			'dinekit_contracted' => 'string', // Contracted hours per week (decimal string; 0/empty = no contract).
+			'dinekit_color'      => 'string',
+			'dinekit_active'     => 'integer', // 1 | 0.
 		),
 		'dinekit_shift' => array(
 			'dinekit_shift_staff' => 'integer',

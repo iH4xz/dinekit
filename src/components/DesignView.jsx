@@ -26,6 +26,12 @@ const LAYOUTS = [
 	{ value: 'chalkboard', label: 'Chalkboard' },
 ];
 const COLS = [ '0', '1', '2', '3' ];
+const TEXT_SIZES = [
+	{ value: 0.9, label: 'Compact' },
+	{ value: 1, label: 'Normal' },
+	{ value: 1.15, label: 'Large' },
+	{ value: 1.3, label: 'X-large' },
+];
 
 // Menu templates (flavours). Each has a base palette shown in the colour
 // pickers until the venue overrides it.
@@ -56,6 +62,8 @@ export default function DesignView() {
 	const [ dietary, setDietary ] = useState( true );
 	const [ matrix, setMatrix ] = useState( true );
 	const [ filter, setFilter ] = useState( true );
+	const [ filterStyle, setFilterStyle ] = useState( 'chips' ); // chips | dropdown
+	const [ allergensAs, setAllergensAs ] = useState( 'icons' ); // icons | text | codes
 	const [ preview, setPreview ] = useState( null );
 	const [ loading, setLoading ] = useState( true );
 	const [ design, setDesign ] = useState( null );
@@ -73,6 +81,7 @@ export default function DesignView() {
 				menu_line: s.menu_line || '',
 				menu_bg: s.menu_bg || '',
 				menu_radius: s.menu_radius != null ? s.menu_radius : 12,
+					menu_scale: s.menu_scale != null ? Number( s.menu_scale ) : 1,
 			} )
 		);
 	}, [] );
@@ -94,8 +103,10 @@ export default function DesignView() {
 			dietary: dietary ? '1' : '0',
 			matrix: matrix ? '1' : '0',
 			filter: filter ? '1' : '0',
+			filter_style: filterStyle,
+			allergen_display: allergensAs,
 		} ),
-		[ layout, columns, images, allergens, dietary, matrix, filter, design ]
+		[ layout, columns, images, allergens, dietary, matrix, filter, filterStyle, allergensAs, design ]
 	);
 
 	useEffect( () => {
@@ -135,8 +146,14 @@ export default function DesignView() {
 		if ( ! filter ) {
 			parts.push( 'filter="no"' );
 		}
+		if ( filter && filterStyle !== 'chips' ) {
+			parts.push( `filter_style="${ filterStyle }"` );
+		}
+		if ( allergens && allergensAs !== 'icons' ) {
+			parts.push( `allergens_as="${ allergensAs }"` );
+		}
 		return `[${ parts.join( ' ' ) }]`;
-	}, [ layout, columns, images, allergens, dietary, matrix, filter ] );
+	}, [ layout, columns, images, allergens, dietary, matrix, filter, filterStyle, allergensAs ] );
 
 	// Live colour overrides so the preview reflects unsaved picks instantly. Only
 	// emit the ones the venue actually set, so the template's palette shows through.
@@ -144,7 +161,7 @@ export default function DesignView() {
 		if ( ! design ) {
 			return '';
 		}
-		let v = `--dinekit-radius:${ design.menu_radius }px;`;
+		let v = `--dinekit-radius:${ design.menu_radius }px;--dinekit-scale:${ design.menu_scale != null ? design.menu_scale : 1 };`;
 		[ [ 'accent', 'accent' ], [ 'menu_ink', 'ink' ], [ 'menu_muted', 'muted' ], [ 'menu_line', 'line' ], [ 'menu_bg', 'bg' ] ].forEach( ( [ k, t ] ) => {
 			if ( design[ k ] ) {
 				v += `--dinekit-${ t }:${ design[ k ] };`;
@@ -203,6 +220,23 @@ export default function DesignView() {
 							<FormControlLabel sx={ compactSwitch } control={ <Switch size="small" checked={ matrix } onChange={ ( e ) => setMatrix( e.target.checked ) } /> } label="Matrix" />
 							<FormControlLabel sx={ compactSwitch } control={ <Switch size="small" checked={ filter } onChange={ ( e ) => setFilter( e.target.checked ) } /> } label="Filter" />
 						</Stack>
+					</Box>
+
+					<Box>
+						<Typography sx={ labelSx }>Filters</Typography>
+						<ToggleButtonGroup exclusive size="small" value={ filterStyle } onChange={ ( e, v ) => v && setFilterStyle( v ) }>
+							<ToggleButton value="chips" sx={ { px: 1.5, textTransform: 'none' } }>Chips</ToggleButton>
+							<ToggleButton value="dropdown" sx={ { px: 1.5, textTransform: 'none' } }>Dropdown</ToggleButton>
+						</ToggleButtonGroup>
+					</Box>
+
+					<Box>
+						<Typography sx={ labelSx }>Allergens as</Typography>
+						<ToggleButtonGroup exclusive size="small" value={ allergensAs } onChange={ ( e, v ) => v && setAllergensAs( v ) }>
+							<ToggleButton value="icons" sx={ { px: 1.5, textTransform: 'none' } }>Icons</ToggleButton>
+							<ToggleButton value="text" sx={ { px: 1.5, textTransform: 'none' } }>Text</ToggleButton>
+							<ToggleButton value="codes" sx={ { px: 1.5, textTransform: 'none' } }>Codes</ToggleButton>
+						</ToggleButtonGroup>
 					</Box>
 
 					<Box sx={ { flex: 1, minWidth: 240 } }>
@@ -299,6 +333,14 @@ export default function DesignView() {
 							onChange={ ( e ) => patchDesign( { menu_radius: Math.max( 0, Math.min( 40, parseInt( e.target.value, 10 ) || 0 ) ) } ) }
 							sx={ { width: 110 } }
 						/>
+						<Box>
+							<Typography sx={ labelSx }>Text size</Typography>
+							<ToggleButtonGroup exclusive size="small" value={ Number( design.menu_scale ) } onChange={ ( e, v ) => v != null && patchDesign( { menu_scale: v } ) }>
+								{ TEXT_SIZES.map( ( s ) => (
+									<ToggleButton key={ s.value } value={ s.value } sx={ { px: 1.5, textTransform: 'none' } }>{ s.label }</ToggleButton>
+								) ) }
+							</ToggleButtonGroup>
+						</Box>
 					</Stack>
 					<Typography sx={ { fontSize: 12, color: tokens.muted2, mt: 1.5 } }>
 						Saved automatically and applied to your live menu. Colours are scoped to <code>.dinekit-menu</code> as CSS custom properties — a theme can’t easily override them, and developers can via the <code>dinekit_menu_style_vars</code> filter.

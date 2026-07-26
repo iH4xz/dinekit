@@ -123,15 +123,17 @@ function render_block( $attributes ) {
 	}
 
 	$args = array(
-		'menu'           => isset( $attributes['menu'] ) ? (int) $attributes['menu'] : 0,
-		'sections'       => isset( $attributes['sections'] ) ? array_map( 'intval', (array) $attributes['sections'] ) : array(),
-		'layout'         => isset( $attributes['layout'] ) ? (string) $attributes['layout'] : 'list',
-		'columns'        => isset( $attributes['columns'] ) ? (int) $attributes['columns'] : 0,
-		'show_images'    => ! isset( $attributes['showImages'] ) || (bool) $attributes['showImages'],
-		'show_allergens' => ! isset( $attributes['showAllergens'] ) || (bool) $attributes['showAllergens'],
-		'show_dietary'   => ! isset( $attributes['showDietary'] ) || (bool) $attributes['showDietary'],
-		'show_matrix'    => ! isset( $attributes['showMatrix'] ) || (bool) $attributes['showMatrix'],
-		'show_filter'    => $show_filter,
+		'menu'             => isset( $attributes['menu'] ) ? (int) $attributes['menu'] : 0,
+		'sections'         => isset( $attributes['sections'] ) ? array_map( 'intval', (array) $attributes['sections'] ) : array(),
+		'layout'           => isset( $attributes['layout'] ) ? (string) $attributes['layout'] : 'list',
+		'columns'          => isset( $attributes['columns'] ) ? (int) $attributes['columns'] : 0,
+		'show_images'      => ! isset( $attributes['showImages'] ) || (bool) $attributes['showImages'],
+		'show_allergens'   => ! isset( $attributes['showAllergens'] ) || (bool) $attributes['showAllergens'],
+		'show_dietary'     => ! isset( $attributes['showDietary'] ) || (bool) $attributes['showDietary'],
+		'show_matrix'      => ! isset( $attributes['showMatrix'] ) || (bool) $attributes['showMatrix'],
+		'show_filter'      => $show_filter,
+		'filter_style'     => isset( $attributes['filterStyle'] ) ? (string) $attributes['filterStyle'] : 'chips',
+		'allergen_display' => isset( $attributes['allergensAs'] ) ? (string) $attributes['allergensAs'] : 'icons',
 	);
 
 	return Render\menu( $args );
@@ -149,15 +151,17 @@ function render_block( $attributes ) {
 function shortcode( $atts ) {
 	$atts = shortcode_atts(
 		array(
-			'menu'      => 0,
-			'sections'  => '',
-			'layout'    => 'list',
-			'columns'   => 0,
-			'images'    => 'yes',
-			'allergens' => 'yes',
-			'dietary'   => 'yes',
-			'matrix'    => 'yes',
-			'filter'    => 'yes',
+			'menu'         => 0,
+			'sections'     => '',
+			'layout'       => 'list',
+			'columns'      => 0,
+			'images'       => 'yes',
+			'allergens'    => 'yes',
+			'dietary'      => 'yes',
+			'matrix'       => 'yes',
+			'filter'       => 'yes',
+			'filter_style' => 'chips',
+			'allergens_as' => 'icons',
 		),
 		$atts,
 		'dinekit_menu'
@@ -177,15 +181,17 @@ function shortcode( $atts ) {
 
 	return Render\menu(
 		array(
-			'menu'           => (int) $atts['menu'],
-			'sections'       => $sections,
-			'layout'         => (string) $atts['layout'],
-			'columns'        => (int) $atts['columns'],
-			'show_images'    => $truthy( $atts['images'] ),
-			'show_allergens' => $truthy( $atts['allergens'] ),
-			'show_dietary'   => $truthy( $atts['dietary'] ),
-			'show_matrix'    => $truthy( $atts['matrix'] ),
-			'show_filter'    => $show_filter,
+			'menu'             => (int) $atts['menu'],
+			'sections'         => $sections,
+			'layout'           => (string) $atts['layout'],
+			'columns'          => (int) $atts['columns'],
+			'show_images'      => $truthy( $atts['images'] ),
+			'show_allergens'   => $truthy( $atts['allergens'] ),
+			'show_dietary'     => $truthy( $atts['dietary'] ),
+			'show_matrix'      => $truthy( $atts['matrix'] ),
+			'show_filter'      => $show_filter,
+			'filter_style'     => (string) $atts['filter_style'],
+			'allergen_display' => (string) $atts['allergens_as'],
 		)
 	);
 }

@@ -9,12 +9,16 @@
 	--dinekit-line: #e5e7eb;
 	--dinekit-bg: transparent;
 	--dinekit-radius: 12px;
+	--dinekit-scale: 1;
 
 	max-width: 1100px;
 	margin: 0 auto;
 	color: var(--dinekit-ink);
 	background: var(--dinekit-bg);
 	line-height: 1.5;
+	/* All menu font-sizes are in em, so this one control scales the whole menu's
+	   text. --dinekit-scale is set from the venue's "Text size" choice. */
+	font-size: calc(1rem * var(--dinekit-scale, 1));
 }
 
 .dinekit-menu * {
@@ -32,7 +36,7 @@
 }
 
 .dinekit-section__title {
-	font-size: 1.35rem;
+	font-size: 1.35em;
 	font-weight: 700;
 	letter-spacing: 0.01em;
 	margin: 0 0 0.25rem;
@@ -43,7 +47,7 @@
 
 .dinekit-section__desc {
 	color: var(--dinekit-muted);
-	font-size: 0.95rem;
+	font-size: 0.95em;
 	margin: 0 0 1rem;
 }
 
@@ -70,7 +74,7 @@
 }
 
 .dinekit-item__name {
-	font-size: 1.05rem;
+	font-size: 1.05em;
 	font-weight: 600;
 	margin: 0;
 	flex: 0 1 auto;
@@ -101,14 +105,14 @@
 
 .dinekit-item__desc {
 	color: var(--dinekit-muted);
-	font-size: 0.92rem;
+	font-size: 0.92em;
 	margin: 0.25rem 0 0;
 	max-width: 60ch;
 }
 
 .dinekit-item__kcal {
 	color: var(--dinekit-muted);
-	font-size: 0.78rem;
+	font-size: 0.78em;
 	letter-spacing: 0.02em;
 	margin: 0.2rem 0 0;
 	opacity: 0.85;
@@ -124,7 +128,7 @@
 
 .dinekit-badge {
 	display: inline-block;
-	font-size: 0.68rem;
+	font-size: 0.68em;
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.03em;
@@ -137,7 +141,7 @@
 }
 
 .dinekit-diet {
-	font-size: 0.72rem;
+	font-size: 0.72em;
 	font-weight: 600;
 	color: #047857;
 	background: #d1fae5;
@@ -160,7 +164,7 @@
 }
 
 .dinekit-allergen-text {
-	font-size: 0.7rem;
+	font-size: 0.7em;
 	color: var(--dinekit-muted);
 	border: 1px solid var(--dinekit-line);
 	border-radius: 6px;
@@ -310,13 +314,13 @@
 	min-width: 0;
 }
 
-/* ---- Layout: Compact chalkboard ---- */
+/* ---- Layout: Compact chalkboard ----
+   Structural only (tight rows, no photos, padded panel). The palette comes from
+   the chosen template + the venue's colour overrides — so the colour swatches
+   always tell the truth and a background override actually applies. Pair with a
+   dark template (Noir) or a dark background for the classic chalkboard look. */
 .dinekit-menu--chalkboard {
-	--dinekit-ink: #f8fafc;
-	--dinekit-muted: #cbd5e1;
-	--dinekit-line: rgba(255, 255, 255, 0.18);
-	--dinekit-accent: #fbbf24;
-	background: #1a202c;
+	background: var(--dinekit-bg);
 	color: var(--dinekit-ink);
 	padding: 1.75rem;
 	border-radius: var(--dinekit-radius);
@@ -331,7 +335,7 @@
 }
 
 .dinekit-menu--chalkboard .dinekit-item__desc {
-	font-size: 0.85rem;
+	font-size: 0.85em;
 }
 
 /* ---- Allergen legend ---- */
@@ -343,7 +347,7 @@
 
 .dinekit-legend__title {
 	display: block;
-	font-size: 0.75rem;
+	font-size: 0.75em;
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -364,14 +368,14 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 0.35rem;
-	font-size: 0.8rem;
+	font-size: 0.8em;
 	color: var(--dinekit-muted);
 }
 
 /* ---- Allergen matrix ---- */
 .dinekit-matrix {
 	margin-top: 1.25rem;
-	font-size: 0.85rem;
+	font-size: 0.85em;
 }
 
 .dinekit-matrix > summary {
@@ -397,7 +401,7 @@
 	border: 1px solid var(--dinekit-line);
 	padding: 0.35rem 0.5rem;
 	text-align: center;
-	font-size: 0.75rem;
+	font-size: 0.75em;
 }
 
 .dinekit-matrix__table thead th {
@@ -452,7 +456,7 @@
 
 .dinekit-coming__badge {
 	display: inline-block;
-	font-size: 0.72rem;
+	font-size: 0.72em;
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
@@ -464,7 +468,7 @@
 }
 
 .dinekit-coming__title {
-	font-size: 1.5rem;
+	font-size: 1.5em;
 	font-weight: 700;
 	margin: 0 0 0.35rem;
 }
@@ -493,7 +497,7 @@
 }
 
 .dinekit-filter__label {
-	font-size: 0.72rem;
+	font-size: 0.72em;
 	font-weight: 700;
 	text-transform: uppercase;
 	letter-spacing: 0.05em;
@@ -503,7 +507,7 @@
 
 .dinekit-filter__chip {
 	font: inherit;
-	font-size: 0.82rem;
+	font-size: 0.82em;
 	font-weight: 600;
 	line-height: 1;
 	color: var(--dinekit-ink);
@@ -532,7 +536,7 @@
 
 .dinekit-filter__clear {
 	font: inherit;
-	font-size: 0.8rem;
+	font-size: 0.8em;
 	font-weight: 600;
 	color: var(--dinekit-muted);
 	background: none;
@@ -547,6 +551,40 @@
 	font-style: italic;
 	padding: 1.5rem 0;
 	text-align: center;
+}
+
+/* ---- Filter: dropdown variant ---- */
+.dinekit-filter--dropdown {
+	gap: 0.75rem 1.5rem;
+}
+
+.dinekit-filter__select {
+	font: inherit;
+	font-size: 0.85em;
+	font-weight: 600;
+	color: var(--dinekit-ink);
+	background: #fff;
+	border: 1px solid var(--dinekit-line);
+	border-radius: 8px;
+	padding: 0.4rem 1.75rem 0.4rem 0.7rem;
+	cursor: pointer;
+	appearance: none;
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='3'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+	background-repeat: no-repeat;
+	background-position: right 0.6rem center;
+}
+
+.dinekit-filter__select:hover,
+.dinekit-filter__select:focus {
+	border-color: var(--dinekit-accent);
+	outline: none;
+}
+
+/* ---- Allergen "codes" display mode ---- */
+.dinekit-allergen-code {
+	font-weight: 700;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
 }
 
 /* =========================================================================
@@ -584,7 +622,7 @@
 	text-align: center;
 	border-bottom: 0;
 	font-weight: 600;
-	font-size: 0.95rem;
+	font-size: 0.95em;
 	letter-spacing: 0.28em;
 	text-transform: uppercase;
 	color: var(--dinekit-ink);
@@ -609,11 +647,11 @@
 	margin: 0 auto;
 }
 .dinekit-menu--tpl-maison .dinekit-item__name {
-	font-size: 1.2rem;
+	font-size: 1.2em;
 	font-weight: 600;
 }
 .dinekit-menu--tpl-maison .dinekit-item__prices {
-	font-size: 1.1rem;
+	font-size: 1.1em;
 }
 .dinekit-menu--tpl-maison .dinekit-item__desc {
 	font-style: italic;
@@ -631,7 +669,7 @@
 	display: block;
 	border-bottom: 2px solid var(--dinekit-line);
 	padding-bottom: 0.6rem;
-	font-size: 0.8rem;
+	font-size: 0.8em;
 	font-weight: 800;
 	letter-spacing: 0.1em;
 	text-transform: uppercase;
@@ -641,7 +679,7 @@
 	padding: 1rem 0;
 }
 .dinekit-menu--tpl-counter .dinekit-item__name {
-	font-size: 1.05rem;
+	font-size: 1.05em;
 	font-weight: 700;
 }
 .dinekit-menu--tpl-counter .dinekit-item__prices {
@@ -657,7 +695,7 @@
 	font-weight: 700;
 	letter-spacing: 0.02em;
 	text-transform: uppercase;
-	font-size: 0.62rem;
+	font-size: 0.62em;
 }
 
 /* ---- C · Noir (upscale evening, dark) ---- */
@@ -677,7 +715,7 @@
 	gap: 0.9rem;
 	border-bottom: 0;
 	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-	font-size: 0.78rem;
+	font-size: 0.78em;
 	font-weight: 600;
 	letter-spacing: 0.22em;
 	text-transform: uppercase;
@@ -695,7 +733,7 @@
 	padding: 0.6rem 0;
 }
 .dinekit-menu--tpl-noir .dinekit-item__name {
-	font-size: 1.15rem;
+	font-size: 1.15em;
 	font-weight: 600;
 }
 .dinekit-menu--tpl-noir .dinekit-item__desc {
@@ -703,7 +741,7 @@
 }
 .dinekit-menu--tpl-noir .dinekit-item__prices {
 	color: var(--dinekit-accent);
-	font-size: 1.05rem;
+	font-size: 1.05em;
 }
 .dinekit-menu--tpl-noir .dinekit-allergen-text {
 	border-color: var(--dinekit-line);
@@ -723,7 +761,7 @@
 }
 .dinekit-menu--tpl-bistro .dinekit-section__title {
 	border-bottom: 0;
-	font-size: 1.4rem;
+	font-size: 1.4em;
 	font-weight: 600;
 	font-style: italic;
 	color: var(--dinekit-accent);
@@ -734,7 +772,7 @@
 	padding: 0.5rem 0;
 }
 .dinekit-menu--tpl-bistro .dinekit-item__name {
-	font-size: 1.1rem;
+	font-size: 1.1em;
 }
 .dinekit-menu--tpl-bistro .dinekit-item__leader {
 	border-bottom-width: 2px;
@@ -756,7 +794,7 @@
 }
 .dinekit-menu--tpl-fresh .dinekit-section__title {
 	display: inline-block;
-	font-size: 0.82rem;
+	font-size: 0.82em;
 	font-weight: 800;
 	letter-spacing: 0.12em;
 	text-transform: uppercase;
@@ -772,7 +810,7 @@
 	border-bottom: 0;
 }
 .dinekit-menu--tpl-fresh .dinekit-item__name {
-	font-size: 1.05rem;
+	font-size: 1.05em;
 	font-weight: 700;
 }
 .dinekit-menu--tpl-fresh .dinekit-item__prices {
@@ -786,7 +824,7 @@
 	border-radius: 999px;
 	padding: 0.12rem 0.55rem;
 	font-weight: 700;
-	font-size: 0.62rem;
+	font-size: 0.62em;
 	text-transform: uppercase;
 }
 
@@ -802,7 +840,7 @@
 .dinekit-menu--tpl-mono .dinekit-section__title {
 	border-bottom: 1px solid var(--dinekit-ink);
 	padding-bottom: 0.5rem;
-	font-size: 0.72rem;
+	font-size: 0.72em;
 	font-weight: 700;
 	letter-spacing: 0.24em;
 	text-transform: uppercase;
@@ -816,7 +854,7 @@
 	border-bottom: 0;
 }
 .dinekit-menu--tpl-mono .dinekit-item__name {
-	font-size: 0.98rem;
+	font-size: 0.98em;
 	font-weight: 600;
 }
 .dinekit-menu--tpl-mono .dinekit-item__prices {
@@ -836,10 +874,13 @@
 	max-width: 420px;
 	color: var(--dinekit-ink);
 	line-height: 1.5;
+	/* This widget's font-sizes are in em too; pin the base so it's independent of
+	   the theme's body size (the menu text-size control doesn't apply here). */
+	font-size: 1rem;
 }
 
 .dinekit-hours__title {
-	font-size: 1.2rem;
+	font-size: 1.2em;
 	font-weight: 700;
 	margin: 0 0 0.6rem;
 }
@@ -849,7 +890,7 @@
 	align-items: center;
 	gap: 0.4rem;
 	font-weight: 600;
-	font-size: 0.95rem;
+	font-size: 0.95em;
 	margin: 0 0 0.75rem;
 	padding: 0.3rem 0.7rem;
 	border-radius: 999px;
@@ -887,7 +928,7 @@
 	padding: 0.4rem 0;
 	border-bottom: 1px solid var(--dinekit-line);
 	text-align: left;
-	font-size: 0.95rem;
+	font-size: 0.95em;
 }
 
 .dinekit-hours__table td {

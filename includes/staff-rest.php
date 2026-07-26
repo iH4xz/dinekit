@@ -511,17 +511,18 @@ function staff_response( $id ) {
 		}
 	}
 	return array(
-		'id'      => (int) $id,
-		'name'    => $post->post_title,
-		'role'    => '' !== $role ? $role : 'server',
-		'area'    => '' !== $area ? $area : 'foh',
-		'email'   => (string) get_post_meta( $id, 'dinekit_email', true ),
-		'phone'   => (string) get_post_meta( $id, 'dinekit_phone', true ),
-		'rate'    => (string) get_post_meta( $id, 'dinekit_rate', true ),
-		'holiday' => (int) get_post_meta( $id, 'dinekit_holiday', true ),
-		'color'   => '' !== $color ? $color : '#4f46e5',
-		'active'  => '0' !== (string) get_post_meta( $id, 'dinekit_active', true ),
-		'login'   => $login,
+		'id'         => (int) $id,
+		'name'       => $post->post_title,
+		'role'       => '' !== $role ? $role : 'server',
+		'area'       => '' !== $area ? $area : 'foh',
+		'email'      => (string) get_post_meta( $id, 'dinekit_email', true ),
+		'phone'      => (string) get_post_meta( $id, 'dinekit_phone', true ),
+		'rate'       => (string) get_post_meta( $id, 'dinekit_rate', true ),
+		'holiday'    => (int) get_post_meta( $id, 'dinekit_holiday', true ),
+		'contracted' => (string) get_post_meta( $id, 'dinekit_contracted', true ),
+		'color'      => '' !== $color ? $color : '#4f46e5',
+		'active'     => '0' !== (string) get_post_meta( $id, 'dinekit_active', true ),
+		'login'      => $login,
 	);
 }
 
@@ -671,6 +672,9 @@ function apply_staff_fields( $id, $request ) {
 	}
 	if ( null !== $request->get_param( 'holiday' ) ) {
 		update_post_meta( $id, 'dinekit_holiday', max( 0, min( 60, absint( $request->get_param( 'holiday' ) ) ) ) );
+	}
+	if ( null !== $request->get_param( 'contracted' ) ) {
+		update_post_meta( $id, 'dinekit_contracted', number_format( max( 0, min( 168, (float) $request->get_param( 'contracted' ) ) ), 2, '.', '' ) );
 	}
 	if ( null !== $request->get_param( 'color' ) && preg_match( '/^#[0-9a-fA-F]{6}$/', (string) $request->get_param( 'color' ) ) ) {
 		update_post_meta( $id, 'dinekit_color', strtolower( (string) $request->get_param( 'color' ) ) );

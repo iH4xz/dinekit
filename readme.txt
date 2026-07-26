@@ -132,6 +132,15 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.13 =
+* New: the staff rota now groups by role — chefs, servers, bar and so on each get their own colour-coded band, so a busy week reads at a glance (switch back to a flat list any time).
+* New: build the rota faster — open a shift and copy its times onto any other days for that person in one go.
+* New: approve holiday right on the rota — pending time-off requests show above the grid with one-tap Approve / Decline, and an approved day immediately flags any shift that clashes with it.
+* New: contracted-hours guard — give a team member their contracted weekly hours and the rota shows each person's scheduled total, turning red when you've rota'd them over contract.
+* New: menu text size — a Compact / Normal / Large / X-large control scales your whole public menu's text for wall screens or phones.
+* New: choose how the menu filter and allergens display — filter as compact dropdowns instead of chips, and show each dish's allergens as icons, full text, or short codes.
+* Fixed: menu colours now apply consistently on every layout. The Chalkboard layout used to force its own dark palette and ignore your colour pickers (a background change did nothing); now every layout takes its colours from the chosen template plus your overrides, so the swatches always match what diners see.
+
 = 1.2.12 =
 * New: Take Order now opens on your live floor plan — the exact room layout you built in Floor Plan, colour-coded live (green just seated, amber nearing your table-turn time, red over it) with a timer on every occupied table, so you can see who's in, how long they've been sat and which tables are free to seat next. It scales to fit a phone, a tablet or a big screen.
 * New: Know which tables need clearing — once a bill is settled the table shows "needs bussing" on the floor; tap it when it's wiped down to mark it ready to seat again.

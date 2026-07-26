@@ -10,6 +10,8 @@ import {
 	Drawer,
 	Chip,
 	CircularProgress,
+	ToggleButton,
+	ToggleButtonGroup,
 } from '../ui';
 import ConfirmDialog from './ui/ConfirmDialog';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
@@ -17,6 +19,8 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import CheckIcon from '@mui/icons-material/Check';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import { tokens } from '../theme';
 import { api } from '../api/client';
 
@@ -37,15 +41,22 @@ function addDays( d, n ) {
 	return x;
 }
 const money = ( n ) => '£' + Number( n || 0 ).toFixed( 2 );
+const fmtDay = ( iso ) => new Date( iso + 'T00:00:00' ).toLocaleDateString( undefined, { day: 'numeric', month: 'short' } );
 
 // Weekly rota grid — staff down the side, the week across the top; each cell
 // holds that person's shifts for the day, with a running hours + labour cost.
+// v2: group by role, colour shifts by role, clone a shift across days, approve
+// holiday on the rota, and warn when scheduled hours exceed a contract.
 export default function StaffRota( { staff, roles } ) {
 	const [ weekStart, setWeekStart ] = useState( () => mondayOf( new Date() ) );
 	const [ shifts, setShifts ] = useState( [] );
+	const [ leave, setLeave ] = useState( [] ); // holiday requests (for the on-rota approve panel)
 	const [ loading, setLoading ] = useState( true );
 	const [ editing, setEditing ] = useState( null );
 	const [ confirmDel, setConfirmDel ] = useState( false );
+	const [ groupByRole, setGroupByRole ] = useState( true );
+	const [ colorBy, setColorBy ] = useState( 'role' ); // 'role' (dept colour) | 'staff'
+	const [ copyTargets, setCopyTargets ] = useState( [] ); // ISO dates to clone the editing shift to
 
 	const days = useMemo( () => Array.from( { length: 7 }, ( _, i ) => addDays( weekStart, i ) ), [ weekStart ] );
 	const from = isoOf( days[ 0 ] );
@@ -57,19 +68,61 @@ export default function StaffRota( { staff, roles } ) {
 	};
 	// eslint-disable-next-line react-hooks/exhaustive-deps
 	useEffect( load, [ from, to ] );
+	const loadLeave = () => api.getLeave().then( ( r ) => setLeave( ( r && r.requests ) || [] ) ).catch( () => {} );
+	useEffect( () => { loadLeave(); }, [] );
 
-	const roleLabel = ( key ) => ( roles.find( ( r ) => r.key === key ) || {} ).label || key;
+	const roleOf = ( key ) => roles.find( ( r ) => r.key === key ) || null;
+	const roleLabel = ( key ) => ( roleOf( key ) || {} ).label || key;
+	const roleColor = ( key ) => ( roleOf( key ) || {} ).color || tokens.muted2;
 	const active = staff.filter( ( m ) => m.active );
 	const cellShifts = ( staffId, date ) => shifts.filter( ( s ) => s.staffId === staffId && s.date === date );
+	const chipColor = ( sh, m ) => ( colorBy === 'role' ? roleColor( sh.role ) : ( m.color || tokens.muted2 ) );
+
+	// Per-staff scheduled hours this week (drives the contracted-hours guard).
+	const hoursByStaff = useMemo( () => {
+		const map = {};
+		shifts.forEach( ( s ) => { map[ s.staffId ] = ( map[ s.staffId ] || 0 ) + ( s.hours || 0 ); } );
+		return map;
+	}, [ shifts ] );
 
 	const totalHours = shifts.reduce( ( s, sh ) => s + ( sh.hours || 0 ), 0 );
 	const totalCost = shifts.reduce( ( s, sh ) => s + ( sh.cost || 0 ), 0 );
 
-	// "Who's on today?" — a tester asked for a plain names view for the day, not
-	// just weekly counts. Only shown when today falls inside the week on screen.
-	// Holiday-clash shifts (scheduled AND on approved leave) are surfaced with a
-	// warning, not hidden — per policy a clash is flagged, never silently dropped,
-	// so the manager never sees "Nobody scheduled" while a contested shift exists.
+	// Group the roster by role (catalogue order), else one flat group.
+	const groups = useMemo( () => {
+		if ( ! groupByRole ) {
+			return [ { key: '_all', label: '', color: null, members: active } ];
+		}
+		const out = [];
+		roles.forEach( ( r ) => {
+			const members = active.filter( ( m ) => m.role === r.key );
+			if ( members.length ) {
+				out.push( { key: r.key, label: r.label, color: r.color, members } );
+			}
+		} );
+		const leftover = active.filter( ( m ) => ! roles.some( ( r ) => r.key === m.role ) );
+		if ( leftover.length ) {
+			out.push( { key: '_none', label: 'Unassigned', color: tokens.muted2, members: leftover } );
+		}
+		return out;
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [ active, roles, groupByRole ] );
+
+	// Pending holiday requests — surfaced so a manager can approve/decline right
+	// on the rota. Ones overlapping the visible week float to the top.
+	const pending = useMemo( () => {
+		return ( leave || [] )
+			.filter( ( r ) => r.status === 'pending' )
+			.map( ( r ) => ( { ...r, member: staff.find( ( m ) => m.id === r.staffId ), thisWeek: r.from <= to && r.to >= from } ) )
+			.sort( ( a, b ) => ( b.thisWeek - a.thisWeek ) || ( a.from || '' ).localeCompare( b.from || '' ) );
+	}, [ leave, staff, from, to ] );
+	const setLeaveStatus = async ( id, status ) => {
+		await api.updateLeave( id, { status } );
+		await loadLeave();
+		load(); // approving may create a clash badge on an existing shift
+	};
+
+	// "Who's on today?" — a plain names view for the day, not just weekly counts.
 	const todayIso = isoOf( new Date() );
 	const todayInWeek = todayIso >= from && todayIso <= to;
 	const todayShifts = shifts
@@ -79,9 +132,10 @@ export default function StaffRota( { staff, roles } ) {
 	const workingCount = todayShifts.filter( ( s ) => ! s.onLeave ).length;
 	const clashCount = todayShifts.length - workingCount;
 
-	const openNew = ( m, date ) => setEditing( { staffId: m.id, staffName: m.name, date, start: '17:00', end: '23:00', role: m.role, note: '' } );
+	const openNew = ( m, date ) => { setCopyTargets( [] ); setEditing( { staffId: m.id, staffName: m.name, date, start: '17:00', end: '23:00', role: m.role, note: '' } ); };
 	const openEdit = ( sh ) => {
 		const m = staff.find( ( x ) => x.id === sh.staffId );
+		setCopyTargets( [] );
 		setEditing( { ...sh, staffName: m ? m.name : '' } );
 	};
 	const saveShift = async () => {
@@ -92,6 +146,20 @@ export default function StaffRota( { staff, roles } ) {
 			await api.createShift( body );
 		}
 		setEditing( null );
+		load();
+	};
+	// Clone this shift's times/role onto the ticked days for the same person
+	// (skips a day that already has a shift for them).
+	const copyShift = async () => {
+		for ( const date of copyTargets ) {
+			if ( cellShifts( editing.staffId, date ).length ) {
+				continue;
+			}
+			// eslint-disable-next-line no-await-in-loop
+			await api.createShift( { staffId: editing.staffId, date, start: editing.start, end: editing.end, role: editing.role, note: editing.note } );
+		}
+		setEditing( null );
+		setCopyTargets( [] );
 		load();
 	};
 	const deleteShift = async () => {
@@ -106,12 +174,83 @@ export default function StaffRota( { staff, roles } ) {
 		return <Typography sx={ { fontSize: 14, color: tokens.muted, py: 3, textAlign: 'center' } }>Add active team members to build a rota.</Typography>;
 	}
 
-	const NAME_W = 150;
+	const NAME_W = 168;
+
+	const nameCell = ( m ) => {
+		const wk = hoursByStaff[ m.id ] || 0;
+		const contracted = parseFloat( m.contracted );
+		const hasContract = Number.isFinite( contracted ) && contracted > 0;
+		const over = hasContract && wk > contracted + 0.001;
+		return (
+			<Box sx={ { width: NAME_W, flexShrink: 0, px: 1.5, py: 1, borderRight: `1px solid ${ tokens.border }`, display: 'flex', alignItems: 'center', gap: 0.75 } }>
+				<Box sx={ { width: 10, height: 10, borderRadius: '50%', bgcolor: colorBy === 'role' ? roleColor( m.role ) : m.color, flexShrink: 0 } } />
+				<Box sx={ { minWidth: 0 } }>
+					<Typography sx={ { fontSize: 13, fontWeight: 600, color: tokens.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ m.name || 'Unnamed' }</Typography>
+					<Typography sx={ { fontSize: 11, color: over ? tokens.red : tokens.muted2, fontWeight: over ? 700 : 400, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } }>
+						{ wk.toFixed( 1 ) }h{ hasContract ? ` / ${ contracted }h` : '' }{ over ? ' ⚠' : '' }
+					</Typography>
+				</Box>
+			</Box>
+		);
+	};
+
+	const staffRow = ( m ) => (
+		<Stack key={ m.id } direction="row" sx={ { borderTop: `1px solid ${ tokens.border }`, minHeight: 54 } }>
+			{ nameCell( m ) }
+			{ days.map( ( d, i ) => {
+				const date = isoOf( d );
+				const cs = cellShifts( m.id, date );
+				return (
+					<Box
+						key={ i }
+						onClick={ () => cs.length === 0 && openNew( m, date ) }
+						sx={ {
+							flex: 1,
+							minWidth: 0,
+							p: 0.5,
+							borderLeft: i ? `1px solid ${ tokens.border }` : 'none',
+							cursor: cs.length === 0 ? 'pointer' : 'default',
+							'&:hover': cs.length === 0 ? { bgcolor: tokens.soft } : {},
+						} }
+					>
+						{ cs.map( ( sh ) => (
+							<Box
+								key={ sh.id }
+								onClick={ ( e ) => { e.stopPropagation(); openEdit( sh ); } }
+								title={ sh.onLeave ? 'Clash — this shift is on the member’s approved holiday' : roleLabel( sh.role ) }
+								sx={ {
+									bgcolor: chipColor( sh, m ),
+									color: '#fff',
+									borderRadius: '6px',
+									px: 0.75,
+									py: 0.4,
+									mb: 0.4,
+									cursor: 'pointer',
+									fontSize: 11,
+									fontWeight: 700,
+									lineHeight: 1.2,
+									...( sh.onLeave ? { outline: `2px solid ${ tokens.amber }`, outlineOffset: '1px' } : {} ),
+								} }
+							>
+								{ sh.start }–{ sh.end }
+								{ sh.onLeave && <Box component="span" sx={ { display: 'block', fontSize: 10, fontWeight: 700 } }>⚠ on holiday</Box> }
+							</Box>
+						) ) }
+						{ cs.length === 0 && (
+							<Box sx={ { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: tokens.border2 } }>
+								<AddIcon sx={ { fontSize: 16 } } />
+							</Box>
+						) }
+					</Box>
+				);
+			} ) }
+		</Stack>
+	);
 
 	return (
 		<Box>
 			{ /* Week navigator */ }
-			<Stack direction="row" alignItems="center" spacing={ 1 } sx={ { mb: 1.5 } }>
+			<Stack direction="row" alignItems="center" spacing={ 1 } sx={ { mb: 1.5, flexWrap: 'wrap' } }>
 				<IconButton size="small" onClick={ () => setWeekStart( ( w ) => addDays( w, -7 ) ) } sx={ { border: `1px solid ${ tokens.border }`, borderRadius: 2 } }><ChevronLeftIcon fontSize="small" /></IconButton>
 				<Button size="small" variant="outlined" onClick={ () => setWeekStart( mondayOf( new Date() ) ) }>This week</Button>
 				<IconButton size="small" onClick={ () => setWeekStart( ( w ) => addDays( w, 7 ) ) } sx={ { border: `1px solid ${ tokens.border }`, borderRadius: 2 } }><ChevronRightIcon fontSize="small" /></IconButton>
@@ -123,6 +262,48 @@ export default function StaffRota( { staff, roles } ) {
 				<Chip label={ `${ totalHours.toFixed( 1 ) } h` } size="small" sx={ { bgcolor: tokens.soft, fontWeight: 600 } } />
 				<Chip label={ `${ money( totalCost ) } labour` } size="small" sx={ { bgcolor: tokens.accentSoft, color: tokens.accentDark, fontWeight: 600 } } />
 			</Stack>
+
+			{ /* View controls */ }
+			<Stack direction="row" alignItems="center" spacing={ 1.5 } sx={ { mb: 1.5, flexWrap: 'wrap' } }>
+				<ToggleButtonGroup size="small" exclusive value={ groupByRole ? 'role' : 'flat' } onChange={ ( e, v ) => v && setGroupByRole( v === 'role' ) }>
+					<ToggleButton value="role">Group by role</ToggleButton>
+					<ToggleButton value="flat">Flat list</ToggleButton>
+				</ToggleButtonGroup>
+				<Stack direction="row" alignItems="center" spacing={ 0.75 }>
+					<Typography sx={ { fontSize: 12.5, color: tokens.muted } }>Colour</Typography>
+					<ToggleButtonGroup size="small" exclusive value={ colorBy } onChange={ ( e, v ) => v && setColorBy( v ) }>
+						<ToggleButton value="role">Role</ToggleButton>
+						<ToggleButton value="staff">Staff</ToggleButton>
+					</ToggleButtonGroup>
+				</Stack>
+			</Stack>
+
+			{ /* Pending holiday requests — approve/decline on the rota */ }
+			{ pending.length > 0 && (
+				<Box sx={ { mb: 1.5, p: 1.5, borderRadius: '12px', border: `1px solid ${ tokens.amber }`, bgcolor: tokens.amberSoft } }>
+					<Typography sx={ { fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: tokens.amber, mb: 1 } }>
+						Holiday requests · { pending.length } pending
+					</Typography>
+					<Stack spacing={ 1 }>
+						{ pending.map( ( r ) => (
+							<Stack key={ r.id } direction="row" alignItems="center" spacing={ 1 } sx={ { bgcolor: tokens.surface, border: `1px solid ${ tokens.border }`, borderRadius: '10px', px: 1.25, py: 0.75 } }>
+								<Box sx={ { flex: 1, minWidth: 0 } }>
+									<Typography sx={ { fontSize: 13, fontWeight: 600, color: tokens.ink } }>
+										{ ( r.member && r.member.name ) || 'Unknown' }
+										{ r.thisWeek && <Box component="span" sx={ { ml: 0.75, fontSize: 11, fontWeight: 700, color: tokens.amber } }>this week</Box> }
+									</Typography>
+									<Typography sx={ { fontSize: 12, color: tokens.muted } }>
+										{ fmtDay( r.from ) }{ r.to !== r.from ? ` – ${ fmtDay( r.to ) }` : '' } · { r.days } day{ Number( r.days ) === 1 ? '' : 's' }
+										{ r.note ? ` · ${ r.note }` : '' }
+									</Typography>
+								</Box>
+								<Button size="small" variant="contained" startIcon={ <CheckIcon /> } onClick={ () => setLeaveStatus( r.id, 'approved' ) }>Approve</Button>
+								<Button size="small" color="error" startIcon={ <CloseIcon /> } onClick={ () => setLeaveStatus( r.id, 'denied' ) }>Decline</Button>
+							</Stack>
+						) ) }
+					</Stack>
+				</Box>
+			) }
 
 			{ todayInWeek && (
 				<Box sx={ { mb: 1.5, p: 1.5, borderRadius: '12px', border: `1px solid ${ tokens.border }`, bgcolor: tokens.accentSoft } }>
@@ -139,7 +320,7 @@ export default function StaffRota( { staff, roles } ) {
 						<Stack direction="row" spacing={ 1 } flexWrap="wrap" useFlexGap>
 							{ todayShifts.map( ( s ) => (
 								<Stack key={ s.id } direction="row" alignItems="center" spacing={ 0.75 } sx={ { bgcolor: tokens.surface, border: `1px solid ${ s.onLeave ? tokens.amber : tokens.border }`, borderRadius: '999px', pl: 0.75, pr: 1.25, py: 0.5, opacity: s.onLeave ? 0.85 : 1 } }>
-									<Box sx={ { width: 8, height: 8, borderRadius: '50%', bgcolor: ( s.member && s.member.color ) || tokens.muted2, flexShrink: 0 } } />
+									<Box sx={ { width: 8, height: 8, borderRadius: '50%', bgcolor: colorBy === 'role' ? roleColor( s.role ) : ( ( s.member && s.member.color ) || tokens.muted2 ), flexShrink: 0 } } />
 									<Typography sx={ { fontSize: 12.5, fontWeight: 600, color: tokens.ink } }>{ ( s.member && s.member.name ) || 'Unnamed' }</Typography>
 									<Typography sx={ { fontSize: 11.5, color: tokens.muted } }>{ roleLabel( s.role ) } · { s.start }–{ s.end }</Typography>
 									{ s.onLeave && <Typography sx={ { fontSize: 11, fontWeight: 700, color: tokens.amber } }>on holiday ⚠</Typography> }
@@ -165,64 +346,21 @@ export default function StaffRota( { staff, roles } ) {
 						) ) }
 					</Stack>
 
-					{ /* Staff rows */ }
-					{ active.map( ( m ) => (
-						<Stack key={ m.id } direction="row" sx={ { borderTop: `1px solid ${ tokens.border }`, minHeight: 54 } }>
-							<Box sx={ { width: NAME_W, flexShrink: 0, px: 1.5, py: 1, borderRight: `1px solid ${ tokens.border }`, display: 'flex', alignItems: 'center', gap: 0.75 } }>
-								<Box sx={ { width: 10, height: 10, borderRadius: '50%', bgcolor: m.color, flexShrink: 0 } } />
-								<Box sx={ { minWidth: 0 } }>
-									<Typography sx={ { fontSize: 13, fontWeight: 600, color: tokens.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ m.name || 'Unnamed' }</Typography>
-									{ m.role && <Typography sx={ { fontSize: 11, color: tokens.muted2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' } }>{ roleLabel( m.role ) }</Typography> }
-								</Box>
-							</Box>
-							{ days.map( ( d, i ) => {
-								const date = isoOf( d );
-								const cs = cellShifts( m.id, date );
-								return (
-									<Box
-										key={ i }
-										onClick={ () => cs.length === 0 && openNew( m, date ) }
-										sx={ {
-											flex: 1,
-											minWidth: 0,
-											p: 0.5,
-											borderLeft: i ? `1px solid ${ tokens.border }` : 'none',
-											cursor: cs.length === 0 ? 'pointer' : 'default',
-											'&:hover': cs.length === 0 ? { bgcolor: tokens.soft } : {},
-										} }
-									>
-										{ cs.map( ( sh ) => (
-											<Box
-												key={ sh.id }
-												onClick={ ( e ) => { e.stopPropagation(); openEdit( sh ); } }
-												title={ sh.onLeave ? 'Clash — this shift is on the member’s approved holiday' : undefined }
-												sx={ {
-													bgcolor: m.color,
-													color: '#fff',
-													borderRadius: '6px',
-													px: 0.75,
-													py: 0.4,
-													mb: 0.4,
-													cursor: 'pointer',
-													fontSize: 11,
-													fontWeight: 700,
-													lineHeight: 1.2,
-													...( sh.onLeave ? { outline: `2px solid ${ tokens.amber }`, outlineOffset: '1px' } : {} ),
-												} }
-											>
-												{ sh.start }–{ sh.end }
-												{ sh.onLeave && <Box component="span" sx={ { display: 'block', fontSize: 10, fontWeight: 700 } }>⚠ on holiday</Box> }
-											</Box>
-										) ) }
-										{ cs.length === 0 && (
-											<Box sx={ { display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: tokens.border2 } }>
-												<AddIcon sx={ { fontSize: 16 } } />
-											</Box>
-										) }
+					{ /* Rows, optionally grouped by role */ }
+					{ groups.map( ( g ) => (
+						<React.Fragment key={ g.key }>
+							{ groupByRole && (
+								<Stack direction="row" sx={ { borderTop: `1px solid ${ tokens.border }`, bgcolor: tokens.soft } }>
+									<Box sx={ { width: '100%', px: 1.5, py: 0.6, display: 'flex', alignItems: 'center', gap: 0.75 } }>
+										<Box sx={ { width: 9, height: 9, borderRadius: '2px', bgcolor: g.color || tokens.muted2, flexShrink: 0 } } />
+										<Typography sx={ { fontSize: 11.5, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: tokens.muted } }>
+											{ g.label } · { g.members.length }
+										</Typography>
 									</Box>
-								);
-							} ) }
-						</Stack>
+								</Stack>
+							) }
+							{ g.members.map( ( m ) => staffRow( m ) ) }
+						</React.Fragment>
 					) ) }
 				</Box>
 			</Box>
@@ -253,6 +391,35 @@ export default function StaffRota( { staff, roles } ) {
 								{ roles.map( ( r ) => <MenuItem key={ r.key } value={ r.key }>{ r.label }</MenuItem> ) }
 							</TextField>
 							<TextField label="Note (optional)" size="small" value={ editing.note } onChange={ ( e ) => setEditing( { ...editing, note: e.target.value } ) } fullWidth />
+
+							{ /* Clone this shift onto other days for the same person */ }
+							{ editing.id && (
+								<Box sx={ { border: `1px solid ${ tokens.border }`, borderRadius: 2, p: 1.5 } }>
+									<Typography sx={ { fontSize: 12.5, fontWeight: 700, color: tokens.ink2, mb: 1 } }>Copy these times to…</Typography>
+									<Stack direction="row" spacing={ 0.75 } flexWrap="wrap" useFlexGap>
+										{ days.map( ( d, i ) => {
+											const date = isoOf( d );
+											if ( date === editing.date ) {
+												return null;
+											}
+											const on = copyTargets.includes( date );
+											return (
+												<Chip
+													key={ date }
+													label={ `${ DAYNAMES[ i ] } ${ d.getDate() }` }
+													size="small"
+													onClick={ () => setCopyTargets( ( t ) => ( on ? t.filter( ( x ) => x !== date ) : [ ...t, date ] ) ) }
+													sx={ { cursor: 'pointer', fontWeight: 600, bgcolor: on ? tokens.accent : tokens.soft, color: on ? '#fff' : tokens.ink2 } }
+												/>
+											);
+										} ) }
+									</Stack>
+									<Button size="small" variant="outlined" startIcon={ <ContentCopyIcon /> } disabled={ ! copyTargets.length } onClick={ copyShift } sx={ { mt: 1.25 } }>
+										Copy to { copyTargets.length || '' } day{ copyTargets.length === 1 ? '' : 's' }
+									</Button>
+								</Box>
+							) }
+
 							<Stack direction="row" alignItems="center" spacing={ 1 }>
 								{ editing.id && (
 									<Button color="error" size="small" startIcon={ <DeleteOutlineIcon /> } onClick={ () => setConfirmDel( true ) }>Delete</Button>
@@ -261,7 +428,6 @@ export default function StaffRota( { staff, roles } ) {
 								<Button onClick={ () => setEditing( null ) } sx={ { color: tokens.muted } }>Cancel</Button>
 								<Button variant="contained" onClick={ saveShift }>Save shift</Button>
 							</Stack>
-							<Typography sx={ { fontSize: 12, color: tokens.muted2 } }>Role: { roleLabel( editing.role ) }</Typography>
 						</Stack>
 					</Box>
 				) }

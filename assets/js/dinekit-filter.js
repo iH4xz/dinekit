@@ -61,6 +61,24 @@
 			}
 		}
 
+		// Dropdown variant: a single "show only" diet and a single "avoid" allergen.
+		bar.addEventListener( 'change', function ( e ) {
+			var sel = e.target;
+			if ( sel.hasAttribute( 'data-diet-select' ) ) {
+				diets = {};
+				if ( sel.value ) {
+					diets[ sel.value ] = true;
+				}
+				apply();
+			} else if ( sel.hasAttribute( 'data-allergen-select' ) ) {
+				avoids = {};
+				if ( sel.value ) {
+					avoids[ sel.value ] = true;
+				}
+				apply();
+			}
+		} );
+
 		bar.addEventListener( 'click', function ( e ) {
 			var chip = e.target.closest( '.dinekit-filter__chip' );
 			if ( chip ) {

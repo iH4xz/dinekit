@@ -185,6 +185,7 @@ export default function StaffView() {
 								<TextField label="Hourly rate (£)" type="number" size="small" value={ editing.rate } onChange={ ( e ) => patch( editing.id, { rate: e.target.value } ) } sx={ { flex: 1 } } />
 								<TextField label="Holiday (days/yr)" type="number" size="small" value={ editing.holiday } onChange={ ( e ) => patch( editing.id, { holiday: Math.max( 0, parseInt( e.target.value, 10 ) || 0 ) } ) } sx={ { flex: 1 } } helperText="UK min 28 (incl. bank hols)" />
 							</Stack>
+							<TextField label="Contracted hours / week" type="number" size="small" value={ editing.contracted || '' } onChange={ ( e ) => patch( editing.id, { contracted: e.target.value } ) } fullWidth helperText="Optional — the rota warns if scheduled hours go over this" />
 							<Stack direction="row" alignItems="center" spacing={ 2 }>
 								<Box>
 									<Typography sx={ { fontSize: 12.5, fontWeight: 600, color: tokens.muted, mb: 0.5 } }>Rota colour</Typography>

@@ -41,6 +41,7 @@ function defaults() {
 		'menu_line'        => '',       // Borders/rules.
 		'menu_bg'          => '',       // Menu background.
 		'menu_radius'      => 12,       // Corner radius, px.
+		'menu_scale'       => 1.0,      // Text-size multiplier (0.85–1.3); scales the whole menu.
 	);
 }
 
@@ -65,7 +66,10 @@ function menu_style_vars( $accent_override = '' ) {
 	$accent = ( '' !== $accent_override && preg_match( '/^#[0-9a-fA-F]{6}$/', $accent_override ) ) ? $accent_override : (string) $s['accent'];
 	// Radius is structural (always applies); colours are emitted only when the
 	// venue overrides them, so the chosen template's palette shows through.
-	$vars     = array( '--dinekit-radius' => (int) $s['menu_radius'] . 'px' );
+	$vars     = array(
+		'--dinekit-radius' => (int) $s['menu_radius'] . 'px',
+		'--dinekit-scale'  => rtrim( rtrim( number_format( (float) $s['menu_scale'], 3, '.', '' ), '0' ), '.' ),
+	);
 	$optional = array(
 		'--dinekit-accent' => $accent,
 		'--dinekit-ink'    => (string) $s['menu_ink'],
@@ -157,6 +161,9 @@ function save( $input ) {
 	}
 	if ( isset( $input['menu_radius'] ) ) {
 		$clean['menu_radius'] = max( 0, min( 40, absint( $input['menu_radius'] ) ) );
+	}
+	if ( isset( $input['menu_scale'] ) ) {
+		$clean['menu_scale'] = max( 0.85, min( 1.3, (float) $input['menu_scale'] ) );
 	}
 
 	update_option( OPTION, $clean );
