@@ -782,6 +782,11 @@ function BookingRow( { booking, turnMin, onStatus, onDelete, onRequestReview, on
 					/>
 				</Tooltip>
 			) }
+			{ booking.guestNoShows > 0 && (
+				<Tooltip title={ `This guest has ${ booking.guestNoShows } previous no-show${ booking.guestNoShows === 1 ? '' : 's' } — consider a deposit` }>
+					<Chip label={ `⚠ ${ booking.guestNoShows } no-show${ booking.guestNoShows === 1 ? '' : 's' }` } size="small" sx={ { height: 20, fontSize: 11.5, fontWeight: 700, bgcolor: tokens.redSoft, color: tokens.red } } />
+				</Tooltip>
+			) }
 			{ booking.depositPaid ? (
 				<Chip
 					label={ booking.depositAmount ? `Deposit £${ ( booking.depositAmount / 100 ).toFixed( 2 ) }` : 'Deposit paid' }

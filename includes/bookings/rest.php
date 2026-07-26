@@ -1151,11 +1151,68 @@ function get_availability( $request ) {
  * @param int $id Booking id.
  * @return array<string,mixed>
  */
+/**
+ * How many past no-show bookings a guest has (matched by email or phone). Built
+ * once per request and cached, so serialising a whole diary stays one query.
+ *
+ * @param string $email Guest email.
+ * @param string $phone Guest phone.
+ * @return int
+ */
+function guest_no_show_count( $email, $phone ) {
+	static $map = null;
+	if ( null === $map ) {
+		$map = array();
+		$ids = get_posts(
+			array(
+				'post_type'      => 'dinekit_booking',
+				'post_status'    => 'publish',
+				'posts_per_page' => 5000, // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- no-show history.
+				'no_found_rows'  => true,
+				'fields'         => 'ids',
+				'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					array(
+						'key'   => 'dinekit_status',
+						'value' => 'no_show',
+					),
+				),
+			)
+		);
+		foreach ( $ids as $bid ) {
+			$e = strtolower( trim( (string) get_post_meta( $bid, 'dinekit_email', true ) ) );
+			$p = preg_replace( '/\D/', '', (string) get_post_meta( $bid, 'dinekit_phone', true ) );
+			if ( '' !== $e ) {
+				$map[ 'e:' . $e ] = ( isset( $map[ 'e:' . $e ] ) ? $map[ 'e:' . $e ] : 0 ) + 1;
+			}
+			if ( '' !== $p ) {
+				$map[ 'p:' . $p ] = ( isset( $map[ 'p:' . $p ] ) ? $map[ 'p:' . $p ] : 0 ) + 1;
+			}
+		}
+	}
+	$e = strtolower( trim( (string) $email ) );
+	$p = preg_replace( '/\D/', '', (string) $phone );
+	// max() so a guest whose email + phone both match the same bookings isn't
+	// double-counted.
+	return max(
+		'' !== $e && isset( $map[ 'e:' . $e ] ) ? (int) $map[ 'e:' . $e ] : 0,
+		'' !== $p && isset( $map[ 'p:' . $p ] ) ? (int) $map[ 'p:' . $p ] : 0
+	);
+}
+
+/**
+ * Serialize a booking.
+ *
+ * @param int $id Booking post id.
+ * @return array<string,mixed>
+ */
 function booking_response( $id ) {
 	$table_id = (int) get_post_meta( $id, 'dinekit_table_id', true );
 	$combo_id = (int) get_post_meta( $id, 'dinekit_combo_id', true );
 	$history  = json_decode( (string) get_post_meta( $id, 'dinekit_history', true ), true );
+	$b_email  = (string) get_post_meta( $id, 'dinekit_email', true );
+	$b_phone  = (string) get_post_meta( $id, 'dinekit_phone', true );
 	return array(
+		'guestNoShows'    => guest_no_show_count( $b_email, $b_phone ),
 		'id'              => (int) $id,
 		'date'            => (string) get_post_meta( $id, 'dinekit_date', true ),
 		'time'            => (string) get_post_meta( $id, 'dinekit_time', true ),
@@ -1467,6 +1524,7 @@ function list_guests() {
 			'phone'     => '',
 			'visits'    => 0,
 			'cancelled' => 0,
+			'noShows'   => 0,
 			'dates'     => array(),
 			'allergens' => array(),
 			'dietary'   => array(),
@@ -1493,7 +1551,9 @@ function list_guests() {
 			$map[ $k ] = $blank( $name, strtolower( trim( $email ) ) );
 		}
 		$status = (string) get_post_meta( $post->ID, 'dinekit_status', true );
-		if ( in_array( $status, array( 'cancelled', 'no_show' ), true ) ) {
+		if ( 'no_show' === $status ) {
+			++$map[ $k ]['noShows'];
+		} elseif ( 'cancelled' === $status ) {
 			++$map[ $k ]['cancelled'];
 		} else {
 			++$map[ $k ]['visits'];
@@ -1556,6 +1616,7 @@ function list_guests() {
 			'phone'         => $p['phone'],
 			'visits'        => $p['visits'],
 			'cancelled'     => $p['cancelled'],
+			'noShows'       => $p['noShows'],
 			'lastVisit'     => $last,
 			'nextVisit'     => $next,
 			'allergens'     => array_keys( $p['allergens'] ),

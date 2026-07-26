@@ -135,6 +135,9 @@ export default function GuestsView() {
 									{ g.visits >= 3 && ! g.vip && (
 										<Chip label="Regular" size="small" sx={ { height: 18, fontSize: 10, bgcolor: tokens.accentSoft, color: tokens.accentDark, fontWeight: 600 } } />
 									) }
+									{ g.noShows > 0 && (
+										<Chip label={ `${ g.noShows } no-show${ g.noShows === 1 ? '' : 's' }` } size="small" title="Consider asking for a deposit" sx={ { height: 18, fontSize: 10, bgcolor: tokens.redSoft, color: tokens.red, fontWeight: 700 } } />
+									) }
 									{ ( g.tags || [] ).map( ( t ) => (
 										<Chip key={ t } label={ t } size="small" sx={ { height: 18, fontSize: 10, bgcolor: tokens.soft, color: tokens.ink2, fontWeight: 600 } } />
 									) ) }
