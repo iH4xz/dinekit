@@ -11,21 +11,190 @@ import TakeoutDiningIcon from '@mui/icons-material/TakeoutDining';
 import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
 import QrCode2Icon from '@mui/icons-material/QrCode2';
 import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
+import GridViewIcon from '@mui/icons-material/GridView';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import HistoryIcon from '@mui/icons-material/History';
 import { tokens } from '../theme';
 import { api } from '../api/client';
+import FloorCanvas from './FloorCanvas';
 import { useSyncRevision } from '../lib/useSync';
 import { printDoc, esc } from '../lib/print';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
 
-const COURSES = [ '', 'Drinks', 'Starters', 'Mains', 'Desserts' ];
 // A dine-in tab stays open (and payable) in Take Order for ANY status except the
 // terminal ones — so a status change made on the Orders board or another tablet
 // (e.g. the kitchen marking it 'ready') never strands the tab or blocks payment.
 // Take Order and Orders are two live windows onto the same order.
 const TAB_CLOSED = [ 'completed', 'cancelled' ];
 const isOpenTab = ( o ) => o && 'dine_in' === o.channel && ! TAB_CLOSED.includes( o.status ) && ! o.archived;
+
+const minsSince = ( iso ) => {
+	if ( ! iso ) {
+		return null;
+	}
+	const t = new Date( String( iso ).replace( ' ', 'T' ) ).getTime();
+	return Number.isNaN( t ) ? null : Math.max( 0, Math.floor( ( Date.now() - t ) / 60000 ) );
+};
+
+// Minutes → compact "45m" / "1h 05m".
+const durMins = ( m ) => {
+	if ( m == null ) {
+		return '';
+	}
+	if ( m < 60 ) {
+		return `${ m }m`;
+	}
+	const h = Math.floor( m / 60 );
+	const mm = m % 60;
+	return mm ? `${ h }h ${ String( mm ).padStart( 2, '0' ) }m` : `${ h }h`;
+};
+
+// "26 Jul, 18:04" for the table's order history.
+const fmtDateTime = ( iso ) => {
+	if ( ! iso ) {
+		return '';
+	}
+	const d = new Date( String( iso ).replace( ' ', 'T' ) );
+	return Number.isNaN( d.getTime() ) ? '' : d.toLocaleString( [], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' } );
+};
+
+// Occupied-table colour escalates with how long the tab's been open vs the turn
+// time: green (fresh) → amber (≥60%) → red (over — needs turning).
+const tableTone = ( mins, turnMin ) => {
+	const turn = Math.max( 30, Number( turnMin ) || 120 );
+	if ( mins >= turn ) {
+		return { fg: tokens.red, bg: tokens.redSoft, br: tokens.red };
+	}
+	if ( mins >= turn * 0.6 ) {
+		return { fg: tokens.amber, bg: tokens.amberSoft, br: tokens.amber };
+	}
+	return { fg: tokens.green, bg: tokens.greenSoft, br: tokens.green };
+};
+
+// Local HH:MM for the tab's timing strip.
+const hhmm = ( iso ) => {
+	if ( ! iso ) {
+		return '';
+	}
+	const d = new Date( String( iso ).replace( ' ', 'T' ) );
+	return Number.isNaN( d.getTime() ) ? '' : d.toLocaleTimeString( [], { hour: '2-digit', minute: '2-digit' } );
+};
+
+// Pull the tab's timeline out of its lines: when it opened, when each round was
+// fired, when it was served, and how long from first fire to served.
+const tabTiming = ( order ) => {
+	if ( ! order ) {
+		return null;
+	}
+	const items = order.items || [];
+	const seen = new Set();
+	const rounds = [];
+	items.forEach( ( li ) => {
+		if ( ! li.fired ) {
+			return;
+		}
+		const k = String( li.firedId || li.firedAt || '' );
+		if ( ! seen.has( k ) ) {
+			seen.add( k );
+			rounds.push( li.firedAt );
+		}
+	} );
+	rounds.sort();
+	const dones = items.filter( ( li ) => li.doneAt ).map( ( li ) => li.doneAt ).sort();
+	const servedAt = dones.length ? dones[ dones.length - 1 ] : '';
+	let serveMins = null;
+	if ( rounds.length && servedAt ) {
+		const a = new Date( String( rounds[ 0 ] ).replace( ' ', 'T' ) ).getTime();
+		const b = new Date( String( servedAt ).replace( ' ', 'T' ) ).getTime();
+		if ( ! Number.isNaN( a ) && ! Number.isNaN( b ) && b >= a ) {
+			serveMins = Math.round( ( b - a ) / 60000 );
+		}
+	}
+	return { opened: order.placed, rounds, servedAt, serveMins };
+};
+
+// Live service floor — the ACTUAL Floor-Plan layout (via the shared FloorCanvas)
+// re-used as the table picker, so staff see at a glance who's seated, how long
+// they've been sat (vs the turn time) and which tables are free to seat next.
+// Switch areas with the same zone chips as the Floor Plan editor.
+function FloorPicker( { floor, zones, zone, setZone, tabFor, openTable, markReady, turnMin, money } ) {
+	const zoneTables = ( floor.tables || [] ).filter( ( t ) => ( t.areaId || 0 ) === ( zone || 0 ) );
+	const seated = zoneTables.filter( ( t ) => tabFor( t.id ) ).length;
+	const dirty = zoneTables.filter( ( t ) => t.cleaning && ! tabFor( t.id ) ).length;
+
+	// Per-table visual state for FloorCanvas.
+	const renderTile = ( t ) => {
+		const tab = tabFor( t.id );
+		const off = 'maintenance' === t.status;
+		const needsBussing = ! tab && ! off && t.cleaning;
+		if ( off ) {
+			return { bg: tokens.soft, border: tokens.border2, fg: tokens.muted2, sub: 'Maint.', dashed: true, disabled: true, dim: true, title: `${ t.name } · out of service` };
+		}
+		if ( tab ) {
+			const mins = minsSince( tab.placed ) || 0;
+			const tone = tableTone( mins, turnMin );
+			return { bg: tone.bg, border: tone.br, fg: tone.fg, sub: `${ mins }m`, raised: true, title: `${ t.name } · open ${ money( tab.total ) }` };
+		}
+		if ( needsBussing ) {
+			return { bg: tokens.skySoft, border: tokens.sky, fg: tokens.sky, sub: 'Clear ✓', dashed: true, title: `${ t.name } · needs bussing — tap when ready` };
+		}
+		return { bg: tokens.surface, border: tokens.border2, fg: tokens.ink, sub: `${ t.seats }`, title: `${ t.name } · ${ t.seats } seats · free` };
+	};
+	const onTile = ( t ) => {
+		if ( 'maintenance' === t.status ) {
+			return;
+		}
+		if ( ! tabFor( t.id ) && t.cleaning ) {
+			markReady( t );
+		} else {
+			openTable( t );
+		}
+	};
+
+	return (
+		<Box>
+			{ zones.length > 1 && (
+				<Stack direction="row" alignItems="center" gap={ 1 } flexWrap="wrap" sx={ { mb: 1.5 } }>
+					{ zones.map( ( z ) => {
+						const active = z.id === ( zone || 0 );
+						return (
+							<Chip
+								key={ z.id }
+								label={ z.name }
+								onClick={ () => setZone( z.id ) }
+								variant={ active ? 'filled' : 'outlined' }
+								sx={ {
+									fontWeight: 600, borderRadius: 999, px: 0.5,
+									...( active
+										? { background: `linear-gradient(180deg, #5a52ea 0%, ${ tokens.accent } 100%)`, color: '#fff', boxShadow: '0 1px 2.5px rgba(79,70,229,.35)' }
+										: { bgcolor: tokens.surface, color: tokens.ink2, borderColor: tokens.border2 } ),
+								} }
+							/>
+						);
+					} ) }
+				</Stack>
+			) }
+			<Stack direction="row" spacing={ 2 } alignItems="center" sx={ { mb: 1, flexWrap: 'wrap' } }>
+				<Typography sx={ { fontSize: 12.5, color: tokens.muted } }>{ seated } of { zoneTables.length } seated{ dirty ? ` · ${ dirty } to clear` : '' }</Typography>
+				<Stack direction="row" spacing={ 1.5 } alignItems="center" sx={ { flexWrap: 'wrap' } }>
+					{ [ [ 'Free', tokens.muted2 ], [ 'Seated', tokens.green ], [ 'Turning soon', tokens.amber ], [ 'Over turn', tokens.red ], [ 'Needs bussing', tokens.sky ] ].map( ( [ lab, c ] ) => (
+						<Stack key={ lab } direction="row" spacing={ 0.5 } alignItems="center">
+							<Box sx={ { width: 10, height: 10, borderRadius: '50%', background: c } } />
+							<Typography sx={ { fontSize: 11, color: tokens.muted } }>{ lab }</Typography>
+						</Stack>
+					) ) }
+				</Stack>
+			</Stack>
+			{ zoneTables.length === 0 ? (
+				<Card sx={ { p: 3 } }><Typography sx={ { color: tokens.muted } }>No tables in this area.</Typography></Card>
+			) : (
+				<FloorCanvas tables={ zoneTables } render={ renderTile } onTile={ onTile } />
+			) }
+		</Box>
+	);
+}
 
 export default function POSView() {
 	const [ loading, setLoading ] = useState( true );
@@ -40,10 +209,20 @@ export default function POSView() {
 	const [ cashUp, setCashUp ] = useState( false ); // cash-up sheet open
 	const [ tableQr, setTableQr ] = useState( false ); // table-QR generator
 	const [ moveOpen, setMoveOpen ] = useState( false ); // transfer-table picker
+	const [ histOpen, setHistOpen ] = useState( false ); // this table's previous-orders panel
 	const [ busy, setBusy ] = useState( false );
 	const [ justFired, setJustFired ] = useState( false ); // brief "sent to kitchen ✓" flash
 	const [ servicePct, setServicePct ] = useState( 12.5 ); // venue default service charge %, editable at settle
+	const [ posView, setPosView ] = useState( 'floor' ); // table picker: 'floor' (live plan) | 'list'
+	const [ zone, setZone ] = useState( 0 ); // selected area for the floor view
+	const [ turnMin, setTurnMin ] = useState( 120 ); // cover duration → occupied-table colour thresholds
+	const [ , setPosTick ] = useState( 0 ); // 30s heartbeat so table timers tick
 	const caps = ( typeof window !== 'undefined' && window.DINEKIT && window.DINEKIT.caps ) || {};
+	// Keep the live floor's on-table timers moving.
+	useEffect( () => {
+		const t = window.setInterval( () => setPosTick( ( n ) => n + 1 ), 30000 );
+		return () => window.clearInterval( t );
+	}, [] );
 
 	useEffect( () => {
 		Promise.all( [
@@ -61,7 +240,13 @@ export default function POSView() {
 			if ( s.servicePct != null ) {
 				setServicePct( Number( s.servicePct ) || 0 );
 			}
+			// Default the floor's zone to the first area with tables.
+			const firstZone = ( ( f && f.areas ) || [] ).find( ( a ) => ( ( f.tables || [] ).some( ( t ) => ( t.areaId || 0 ) === a.id ) ) );
+			if ( firstZone ) {
+				setZone( firstZone.id );
+			}
 		} ).finally( () => setLoading( false ) );
+		api.getBookingSettings().then( ( bs ) => { if ( bs && bs.turn_time ) { setTurnMin( bs.turn_time ); } } ).catch( () => {} );
 	}, [] );
 
 	// Live-sync: when orders change on another tablet or the Orders board, refresh
@@ -93,6 +278,11 @@ export default function POSView() {
 	const tabFor = ( tableId ) => orders.find( ( o ) => o.tableId === tableId );
 
 	const openTable = ( t ) => { setActive( { tableId: t.id, tableName: t.name, order: tabFor( t.id ) || null } ); setCourse( '' ); };
+	// Clear a table's "needs bussing" flag once it's cleaned down and ready to seat.
+	const markReady = ( t ) => {
+		setFloor( ( f ) => ( { ...f, tables: ( f.tables || [] ).map( ( x ) => ( x.id === t.id ? { ...x, cleaning: '' } : x ) ) } ) );
+		api.updateTable( t.id, { cleaning: 0 } ).catch( () => {} );
+	};
 	const openTakeaway = () => { setActive( { tableId: 0, tableName: 'Takeaway', order: null, takeaway: true } ); setCourse( '' ); };
 	const back = () => setActive( null );
 
@@ -191,13 +381,17 @@ export default function POSView() {
 		);
 	}
 
-	// ---- Table picker ----
-	if ( ! active ) {
-		const zones = ( floor.areas || [] ).map( ( a ) => ( { id: a.id, name: a.name } ) );
-		if ( ( floor.tables || [] ).some( ( t ) => ! ( t.areaId || 0 ) ) ) {
-			zones.push( { id: 0, name: 'Tables' } );
-		}
-		return (
+	// ---- Table picker (always the base view; the order pad pops over it) ----
+	const zones = ( floor.areas || [] ).map( ( a ) => ( { id: a.id, name: a.name } ) );
+	if ( ( floor.tables || [] ).some( ( t ) => ! ( t.areaId || 0 ) ) ) {
+		zones.push( { id: 0, name: 'Tables' } );
+	}
+	const lines = ( active && active.order && active.order.items ) || [];
+	const total = active && active.order ? active.order.total : 0;
+	const unfired = lines.filter( ( l ) => ! l.fired ).length;
+
+	return (
+		<>
 			<Page>
 				<PageHeader
 					title="Take Order"
@@ -212,10 +406,28 @@ export default function POSView() {
 				/>
 				{ cashUp && <CashSheet money={ money } onClose={ () => setCashUp( false ) } /> }
 				{ tableQr && <TableQrSheet onClose={ () => setTableQr( false ) } /> }
+				{ ( floor.tables || [] ).length > 0 && (
+					<ToggleButtonGroup size="small" exclusive value={ posView } onChange={ ( e, v ) => v && setPosView( v ) } sx={ { mb: 2 } }>
+						<ToggleButton value="floor"><GridViewIcon sx={ { fontSize: 16, mr: 0.5 } } />Floor</ToggleButton>
+						<ToggleButton value="list"><ViewListIcon sx={ { fontSize: 16, mr: 0.5 } } />List</ToggleButton>
+					</ToggleButtonGroup>
+				) }
 				{ ( floor.tables || [] ).length === 0 ? (
 					<Card sx={ { p: 3 } }>
 						<Typography sx={ { color: tokens.muted } }>No tables yet — add tables in Floor Plan first, or take a counter order with “Quick takeaway”.</Typography>
 					</Card>
+				) : posView === 'floor' ? (
+					<FloorPicker
+						floor={ floor }
+						zones={ zones }
+						zone={ zone }
+						setZone={ setZone }
+						tabFor={ tabFor }
+						openTable={ openTable }
+						markReady={ markReady }
+						turnMin={ turnMin }
+						money={ money }
+					/>
 				) : zones.map( ( z ) => {
 					const zt = ( floor.tables || [] ).filter( ( t ) => ( t.areaId || 0 ) === z.id );
 					if ( ! zt.length ) {
@@ -254,37 +466,61 @@ export default function POSView() {
 					);
 				} ) }
 			</Page>
-		);
-	}
-
-	// ---- Order pad ----
-	const lines = ( active.order && active.order.items ) || [];
-	const total = active.order ? active.order.total : 0;
-	const unfired = lines.filter( ( l ) => ! l.fired ).length;
-
-	return (
-		<Page width="100%">
+			{ /* ---- Order pad — centered popup over the floor (like the app's other dialogs) ---- */ }
+			{ active && (
+			<Modal open onClose={ back } sx={ { maxWidth: 1120, width: '96vw' } }>
+			<Box className="dk-pos-order" sx={ { p: { xs: 2, md: 3 }, maxHeight: '90vh', overflowY: 'auto' } }>
 			<Stack direction="row" alignItems="center" spacing={ 1.5 } sx={ { mb: 2 } }>
 				<IconButton onClick={ back } sx={ { border: `1px solid ${ tokens.border }`, borderRadius: 2 } }><ArrowBackIcon /></IconButton>
 				<Box sx={ { flex: 1, minWidth: 0 } }>
-					<Typography variant="h5">{ active.tableName }</Typography>
+					<Stack direction="row" alignItems="center" spacing={ 1 } sx={ { flexWrap: 'wrap' } }>
+							<Typography variant="h5">{ active.tableName }</Typography>
+							{ active.order && active.order.placed && (
+								<Chip size="small" label={ `⏱ ${ durMins( minsSince( active.order.placed ) ) }` } sx={ { fontWeight: 700, fontVariantNumeric: 'tabular-nums', bgcolor: tokens.accentSoft, color: tokens.accentDark } } />
+							) }
+						</Stack>
 					<Typography sx={ { fontSize: 13, color: tokens.muted } }>
 						{ active.order ? `Open tab · ${ money( total ) }` : ( active.takeaway ? 'New counter order' : 'New tab — add the first item' ) }
 					</Typography>
+					{ active.order && ( () => {
+						const tm = tabTiming( active.order );
+						if ( ! tm || ( ! tm.opened && ! tm.rounds.length ) ) {
+							return null;
+						}
+						return (
+							<Typography sx={ { fontSize: 11.5, color: tokens.muted2, mt: 0.25, fontVariantNumeric: 'tabular-nums' } }>
+								{ [
+									tm.opened ? `Opened ${ hhmm( tm.opened ) } · ${ durMins( minsSince( tm.opened ) ) } ago` : '',
+									tm.rounds.length ? `${ tm.rounds.length } round${ tm.rounds.length === 1 ? '' : 's' } (last ${ hhmm( tm.rounds[ tm.rounds.length - 1 ] ) })` : '',
+									tm.servedAt ? `Served · took ${ tm.serveMins } min` : ( tm.rounds.length ? `Cooking ${ durMins( minsSince( tm.rounds[ tm.rounds.length - 1 ] ) ) }` : '' ),
+									'',
+								].filter( Boolean ).join( '  ·  ' ) }
+							</Typography>
+						);
+					} )() }
 				</Box>
-				{ active.order && ! active.takeaway && (
+				{ active.tableId ? (
+						<IconButton onClick={ () => setHistOpen( true ) } title="Previous orders for this table" sx={ { border: `1px solid ${ tokens.border }`, borderRadius: 2 } }><HistoryIcon /></IconButton>
+					) : null }
+					{ active.order && ! active.takeaway && (
 					<Button variant="outlined" startIcon={ <TableRestaurantIcon /> } onClick={ () => setMoveOpen( true ) }>Move</Button>
 				) }
 			</Stack>
 
-			<Stack direction={ { xs: 'column', md: 'row' } } spacing={ 2 } alignItems="flex-start">
+			{ histOpen && active.tableId ? (
+					<TableHistorySheet tableId={ active.tableId } tableName={ active.tableName } money={ money } onClose={ () => setHistOpen( false ) } />
+				) : null }
+				<Stack direction={ { xs: 'column', md: 'row' } } spacing={ 2 } alignItems="flex-start">
 				{ /* Menu grid */ }
 				<Box sx={ { flex: 1, minWidth: 0, width: '100%' } }>
-					<ToggleButtonGroup size="small" exclusive value={ course } onChange={ ( e, v ) => setCourse( v == null ? '' : v ) } sx={ { mb: 2, flexWrap: 'wrap' } }>
-						{ COURSES.map( ( c ) => <ToggleButton key={ c || 'any' } value={ c }>{ c || 'No course' }</ToggleButton> ) }
-					</ToggleButtonGroup>
+					{ sections.length > 1 && (
+						<ToggleButtonGroup size="small" exclusive value={ course } onChange={ ( e, v ) => setCourse( v == null ? '' : v ) } sx={ { mb: 2, flexWrap: 'wrap' } }>
+							<ToggleButton value="">All</ToggleButton>
+							{ sections.map( ( s ) => <ToggleButton key={ s.id } value={ s.name }>{ s.name }</ToggleButton> ) }
+						</ToggleButtonGroup>
+					) }
 					{ sections.length === 0 && <Typography sx={ { color: tokens.muted } }>No menu items yet — add some in Menu Builder.</Typography> }
-					{ sections.map( ( sec ) => (
+					{ ( course ? sections.filter( ( s ) => s.name === course ) : sections ).map( ( sec ) => (
 						<Box key={ sec.id } sx={ { mb: 2.5 } }>
 							<Typography sx={ { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: tokens.muted, mb: 1 } }>{ sec.name }</Typography>
 							<Box sx={ { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 1 } }>
@@ -402,7 +638,80 @@ export default function POSView() {
 					onServicePct={ ( pct ) => { setServicePct( pct ); api.saveOrderSettings( { service_pct: pct } ).catch( () => {} ); } }
 				/>
 			) }
-		</Page>
+			</Box>
+			</Modal>
+			) }
+		</>
+	);
+}
+
+// A table's previous (settled) orders — opened from the order pad's history icon.
+function TableHistorySheet( { tableId, tableName, money, onClose } ) {
+	const [ orders, setOrders ] = useState( null );
+	const [ openId, setOpenId ] = useState( 0 );
+	useEffect( () => {
+		let live = true;
+		api.tableHistory( tableId )
+			.then( ( r ) => { if ( live ) { setOrders( Array.isArray( r ) ? r : [] ); } } )
+			.catch( () => { if ( live ) { setOrders( [] ); } } );
+		return () => { live = false; };
+	}, [ tableId ] );
+	return (
+		<Modal open onClose={ onClose } sx={ { maxWidth: 620 } }>
+			<Box sx={ { p: 3, maxHeight: '82vh', overflowY: 'auto' } }>
+				<Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={ { mb: 2 } }>
+					<Box>
+						<Typography variant="h6">Previous orders</Typography>
+						<Typography sx={ { fontSize: 13, color: tokens.muted } }>{ tableName } · settled tabs, most recent first</Typography>
+					</Box>
+					<IconButton size="small" onClick={ onClose }><CloseIcon fontSize="small" /></IconButton>
+				</Stack>
+				{ orders === null ? (
+					<Stack alignItems="center" sx={ { py: 5 } }><CircularProgress /></Stack>
+				) : orders.length === 0 ? (
+					<Typography sx={ { color: tokens.muted, py: 2 } }>No previous orders for this table yet.</Typography>
+				) : (
+					<Stack spacing={ 1.25 }>
+						{ orders.map( ( o ) => {
+							const items = o.items || [];
+							const count = items.reduce( ( n, l ) => n + ( Number( l.qty ) || 1 ), 0 );
+							const tenders = ( o.tenders || [] ).map( ( t ) => t.type ).filter( Boolean );
+							const open = openId === o.id;
+							return (
+								<Card key={ o.id } sx={ { p: 0, overflow: 'hidden' } }>
+									<Box onClick={ () => setOpenId( open ? 0 : o.id ) } sx={ { p: 1.5, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1.5 } }>
+										<Box sx={ { flex: 1, minWidth: 0 } }>
+											<Typography sx={ { fontWeight: 700, fontSize: 14 } }>{ fmtDateTime( o.placed ) }</Typography>
+											<Typography sx={ { fontSize: 12, color: tokens.muted } }>
+												#{ o.number } · { count } item{ count === 1 ? '' : 's' }{ tenders.length ? ` · ${ tenders.join( ', ' ) }` : '' }
+											</Typography>
+										</Box>
+										<Typography sx={ { fontWeight: 700, fontVariantNumeric: 'tabular-nums' } }>{ money( Number( o.grandTotal ) ) }</Typography>
+									</Box>
+									{ open && (
+										<Box sx={ { px: 1.5, pb: 1.5, borderTop: `1px solid ${ tokens.border }` } }>
+											{ items.map( ( l, i ) => (
+												<Stack key={ i } direction="row" justifyContent="space-between" spacing={ 1 } sx={ { mt: 1 } }>
+													<Typography sx={ { fontSize: 13, color: tokens.ink2 } }>
+														{ Number( l.qty ) || 1 }× { l.title }{ l.priceLabel ? ` · ${ l.priceLabel }` : '' }
+													</Typography>
+													<Typography sx={ { fontSize: 13, color: tokens.muted, fontVariantNumeric: 'tabular-nums', flexShrink: 0 } }>{ money( Number( l.lineTotal ) || 0 ) }</Typography>
+												</Stack>
+											) ) }
+											{ ( Number( o.service ) > 0 || Number( o.tip ) > 0 ) && (
+												<Typography sx={ { fontSize: 12, color: tokens.muted, mt: 1 } }>
+													{ [ Number( o.service ) > 0 ? `Service ${ money( Number( o.service ) ) }` : '', Number( o.tip ) > 0 ? `Tip ${ money( Number( o.tip ) ) }` : '' ].filter( Boolean ).join( ' · ' ) }
+												</Typography>
+											) }
+										</Box>
+									) }
+								</Card>
+							);
+						} ) }
+					</Stack>
+				) }
+			</Box>
+		</Modal>
 	);
 }
 

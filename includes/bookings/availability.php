@@ -186,6 +186,7 @@ function all_tables() {
 			'rotation' => (int) get_post_meta( $post->ID, 'dinekit_rotation', true ),
 			'shape'    => $shape ? $shape : 'round',
 			'status'   => 'maintenance' === $status ? 'maintenance' : 'active',
+			'cleaning' => (string) get_post_meta( $post->ID, 'dinekit_cleaning', true ),
 		);
 	}
 	return $tables;

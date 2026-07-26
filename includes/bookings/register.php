@@ -214,6 +214,19 @@ function register() {
 			'auth_callback'     => __NAMESPACE__ . '\\can_manage',
 		)
 	);
+	register_post_meta(
+		'dinekit_table',
+		'dinekit_cleaning',
+		array(
+			'type'              => 'string',
+			'description'       => __( 'Time the table was vacated and needs bussing; empty when ready.', 'dinekit' ),
+			'single'            => true,
+			'default'           => '',
+			'show_in_rest'      => false,
+			'sanitize_callback' => 'sanitize_text_field',
+			'auth_callback'     => __NAMESPACE__ . '\\can_manage',
+		)
+	);
 
 	// --- Bookings ---
 	register_post_type(
@@ -255,6 +268,7 @@ function register() {
 		'dinekit_archived'         => 'integer', // 1 = archived (never hard-deleted).
 		'dinekit_refund_due'       => 'integer', // 1 = a deposit refund is owed but failed automatically.
 		'dinekit_history'          => 'string',  // JSON: [{t,e}] audit trail.
+		'dinekit_seated_at'        => 'string',  // ISO time the party was seated (live on-table timer).
 	);
 	foreach ( $booking_meta as $key => $type ) {
 		register_post_meta(

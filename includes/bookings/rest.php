@@ -912,6 +912,7 @@ function table_response( $id ) {
 		'rotation' => (int) get_post_meta( $id, 'dinekit_rotation', true ),
 		'shape'    => $shape ? $shape : 'round',
 		'status'   => 'maintenance' === $status ? 'maintenance' : 'active',
+		'cleaning' => (string) get_post_meta( $id, 'dinekit_cleaning', true ),
 	);
 }
 
@@ -950,6 +951,15 @@ function apply_table_fields( $id, $request ) {
 	if ( null !== $request->get_param( 'status' ) ) {
 		$status = sanitize_key( (string) $request->get_param( 'status' ) );
 		update_post_meta( $id, 'dinekit_status', 'maintenance' === $status ? 'maintenance' : 'active' );
+	}
+	// Operational cleaning state: truthy marks "needs bussing" (stamps the time);
+	// falsy clears it back to ready. Set on tab settle, cleared by "Mark ready".
+	if ( null !== $request->get_param( 'cleaning' ) ) {
+		if ( $request->get_param( 'cleaning' ) ) {
+			update_post_meta( $id, 'dinekit_cleaning', current_time( 'mysql' ) );
+		} else {
+			delete_post_meta( $id, 'dinekit_cleaning' );
+		}
 	}
 	if ( null !== $request->get_param( 'area' ) ) {
 		$area = (int) $request->get_param( 'area' );
@@ -1158,6 +1168,7 @@ function booking_response( $id ) {
 		'phone'           => (string) get_post_meta( $id, 'dinekit_phone', true ),
 		'notes'           => (string) get_post_meta( $id, 'dinekit_notes', true ),
 		'status'          => (string) get_post_meta( $id, 'dinekit_status', true ),
+		'seatedAt'        => (string) get_post_meta( $id, 'dinekit_seated_at', true ),
 		'source'          => (string) get_post_meta( $id, 'dinekit_source', true ),
 		'depositRequired' => '1' === (string) get_post_meta( $id, 'dinekit_deposit_required', true ),
 		'depositPaid'     => '1' === (string) get_post_meta( $id, 'dinekit_deposit_paid', true ),
@@ -1354,6 +1365,11 @@ function update_booking( $request ) {
 		$labels = Bookings\statuses();
 		/* translators: %s: booking status label. */
 		Bookings\log_event( $id, sprintf( __( 'Status changed to %s', 'dinekit' ), $labels[ $new_status ] ?? $new_status ) );
+		// Stamp the moment a party is seated so the diary can run a live on-table
+		// timer (and colour-escalate it as they approach the turn time).
+		if ( 'seated' === $new_status && '' === (string) get_post_meta( $id, 'dinekit_seated_at', true ) ) {
+			update_post_meta( $id, 'dinekit_seated_at', current_time( 'c' ) );
+		}
 		// Email the diner when freshly confirmed or cancelled.
 		if ( in_array( $new_status, array( 'confirmed', 'cancelled' ), true ) ) {
 			require_once DINEKIT_DIR . 'includes/bookings/emails.php';

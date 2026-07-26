@@ -111,6 +111,16 @@ function register_routes() {
 			'permission_callback' => __NAMESPACE__ . '\\can_manage',
 		)
 	);
+	// POS: a single table's past (settled) orders, for the order-pad history panel.
+	register_rest_route(
+		$ns,
+		'/orders/table/(?P<id>\d+)/history',
+		array(
+			'methods'             => \WP_REST_Server::READABLE,
+			'callback'            => __NAMESPACE__ . '\\table_history',
+			'permission_callback' => __NAMESPACE__ . '\\can_manage',
+		)
+	);
 	register_rest_route(
 		$ns,
 		'/pos/item-stock',
@@ -313,6 +323,48 @@ function list_orders( $request ) {
 }
 
 /**
+ * GET /orders/table/:id/history — a single table's settled (closed) orders,
+ * newest first, for the order-pad history panel.
+ *
+ * @param \WP_REST_Request $request Request.
+ * @return \WP_REST_Response
+ */
+function table_history( $request ) {
+	$table_id = (int) $request['id'];
+	if ( ! $table_id ) {
+		return rest_ensure_response( array() );
+	}
+	$posts  = get_posts(
+		array(
+			'post_type'      => 'dinekit_order',
+			'post_status'    => 'publish',
+			'posts_per_page' => 30,
+			'no_found_rows'  => true,
+			'orderby'        => 'date',
+			'order'          => 'DESC',
+			'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				'relation' => 'AND',
+				array(
+					'key'   => 'dinekit_order_table_id',
+					'value' => $table_id,
+				),
+				array(
+					'key'   => 'dinekit_order_status',
+					'value' => 'completed',
+				),
+			),
+		)
+	);
+	$orders = array_map(
+		static function ( $post ) {
+			return order_response( $post->ID );
+		},
+		$posts
+	);
+	return rest_ensure_response( $orders );
+}
+
+/**
  * PATCH /orders/:id — accept/reject, change status/payment, or archive. Every
  * change is written to the order's history trail.
  *
@@ -432,6 +484,9 @@ function update_order( $request ) {
 			$lid = isset( $li['firedId'] ) ? (string) $li['firedId'] : (string) ( isset( $li['firedAt'] ) ? $li['firedAt'] : '' );
 			if ( ! empty( $li['fired'] ) && $lid === $round && ( isset( $li['kstage'] ) ? $li['kstage'] : 'new' ) !== 'done' ) {
 				$li['kstage'] = $stage;
+				if ( 'done' === $stage && empty( $li['doneAt'] ) ) {
+					$li['doneAt'] = current_time( 'c' ); // served — for the tab's time-to-serve.
+				}
 			}
 		}
 		unset( $li );
@@ -542,6 +597,13 @@ function update_order( $request ) {
 	} elseif ( 'close' === $action ) {
 		update_post_meta( $id, 'dinekit_order_status', 'completed' );
 		Ordering\log_event( $id, __( 'Tab closed', 'dinekit' ) );
+		// A settled dine-in table is now empty and needs bussing — flag it on the
+		// live floor so staff know which tables to clear before re-seating.
+		$closed_chan  = (string) get_post_meta( $id, 'dinekit_order_channel', true );
+		$closed_table = (int) get_post_meta( $id, 'dinekit_order_table_id', true );
+		if ( 'dine_in' === $closed_chan && $closed_table && 'dinekit_table' === get_post_type( $closed_table ) ) {
+			update_post_meta( $closed_table, 'dinekit_cleaning', current_time( 'mysql' ) );
+		}
 	}
 
 	$status = (string) $request->get_param( 'status' );
@@ -560,7 +622,10 @@ function update_order( $request ) {
 				foreach ( $kitems as &$kl ) {
 					if ( ! empty( $kl['fired'] ) && ( isset( $kl['kstage'] ) ? $kl['kstage'] : 'new' ) !== 'done' ) {
 						$kl['kstage'] = 'done';
-						$touched      = true;
+						if ( empty( $kl['doneAt'] ) ) {
+							$kl['doneAt'] = current_time( 'c' );
+						}
+						$touched = true;
 					}
 				}
 				unset( $kl );

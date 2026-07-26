@@ -131,6 +131,15 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 
 == Changelog ==
 
+= 1.2.12 =
+* New: Take Order now opens on your live floor plan — the exact room layout you built in Floor Plan, colour-coded live (green just seated, amber nearing your table-turn time, red over it) with a timer on every occupied table, so you can see who's in, how long they've been sat and which tables are free to seat next. It scales to fit a phone, a tablet or a big screen.
+* New: Know which tables need clearing — once a bill is settled the table shows "needs bussing" on the floor; tap it when it's wiped down to mark it ready to seat again.
+* New: Tapping a table opens the order pad as a pop-up over the floor and closes straight back to it — a fast, till-like flow instead of jumping to a separate screen and back.
+* New: Live table timers on the open tab — how long it's been open, when it opened, how many rounds have gone to the kitchen and how long the current one's been cooking (or how long service took).
+* New: A table's order history — a history button shows that table's previous settled bills (date, items, how they paid, total; tap one to see the items), so you can answer "what did they have last time?" on the spot.
+* New: Live on-table timers in the booking diary too — a seated party's timer turns amber as it nears your turn time and red once it's over, so tables that need turning stand out at a glance.
+* Improved: The order pad's course tabs now filter the menu to that section (Starters, Mains, Desserts…), and a tab's timeline (opened / fired / served / time-to-serve) shows right on the order screen.
+
 = 1.2.11 =
 * New: Install DineKit as an app on any phone or tablet — it runs from a home-screen icon, separate from wp-admin, keeps loading through a dropped connection, and many tablets stay in sync automatically (an order or booking made on one appears on the others within seconds).
 * New: Kitchen Display now handles coursing properly — each round you fire is its own ticket that moves through New → Preparing → Ready on its own, so firing mains later never disturbs the starters that are already cooking, and only the new items show.

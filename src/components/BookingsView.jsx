@@ -74,10 +74,15 @@ export default function BookingsView() {
 	const [ svc, setSvc ] = useState( { openMin: 720, closeMin: 1320 } );
 	const [ turnMin, setTurnMin ] = useState( 120 );
 	const [ events, setEvents ] = useState( [] );
+	const [ , setTick ] = useState( 0 ); // 30s heartbeat so on-table timers tick
 
-	// Events share the day with bookings — surface them in the diary + timeline.
+	// Events share the day; the turn time (cover duration) drives the live on-table
+	// timers on seated tables. Load both on mount, and tick every 30s.
 	useEffect( () => {
 		api.getEvents().then( ( e ) => setEvents( e || [] ) ).catch( () => {} );
+		api.getBookingSettings().then( ( s ) => { if ( s && s.turn_time ) { setTurnMin( s.turn_time ); } } ).catch( () => {} );
+		const t = window.setInterval( () => setTick( ( n ) => n + 1 ), 30000 );
+		return () => window.clearInterval( t );
 	}, [] );
 
 	const load = useCallback( ( d ) => {
@@ -641,6 +646,7 @@ export default function BookingsView() {
 											<BookingRow
 												key={ b.id }
 												booking={ b }
+												turnMin={ turnMin }
 												onStatus={ ( s ) => setStatus( b.id, s ) }
 												onDelete={ () => remove( b.id ) }
 												onRequestReview={ () => askReview( b.id ) }
@@ -708,8 +714,28 @@ export default function BookingsView() {
 	);
 }
 
-function BookingRow( { booking, onStatus, onDelete, onRequestReview, onOpen, selectMode, selected, onToggleSelect } ) {
+// Live on-table timer for a seated party: minutes since seated, colour-escalating
+// from green → amber (past 75% of the turn time) → red (over it), so a table
+// that's been sitting too long jumps out at a glance.
+function onTableTimer( seatedAt, turnMin ) {
+	if ( ! seatedAt ) {
+		return null;
+	}
+	const t = new Date( String( seatedAt ).replace( ' ', 'T' ) ).getTime();
+	if ( Number.isNaN( t ) ) {
+		return null;
+	}
+	const mins = Math.max( 0, Math.floor( ( Date.now() - t ) / 60000 ) );
+	const turn = Math.max( 30, Number( turnMin ) || 120 );
+	const tone = mins >= turn
+		? { fg: tokens.red, bg: tokens.redSoft }
+		: ( mins >= turn * 0.75 ? { fg: tokens.amber, bg: tokens.amberSoft } : { fg: tokens.green, bg: tokens.greenSoft } );
+	return { mins, tone, over: mins >= turn };
+}
+
+function BookingRow( { booking, turnMin, onStatus, onDelete, onRequestReview, onOpen, selectMode, selected, onToggleSelect } ) {
 	const meta = statusMeta( booking.status );
+	const onTable = 'seated' === booking.status ? onTableTimer( booking.seatedAt, turnMin ) : null;
 	const [ menuEl, setMenuEl ] = useState( null );
 	const closeMenu = () => setMenuEl( null );
 	const run = ( fn ) => () => { closeMenu(); fn(); };
@@ -747,6 +773,15 @@ function BookingRow( { booking, onStatus, onDelete, onRequestReview, onOpen, sel
 					{ booking.phone ? ` · ${ booking.phone }` : '' }
 				</Typography>
 			</Box>
+			{ onTable && (
+				<Tooltip title={ onTable.over ? `On table ${ onTable.mins }m — past the ${ turnMin }-min turn` : `Seated ${ onTable.mins } min ago` }>
+					<Chip
+						label={ `⏱ ${ onTable.mins }m` }
+						size="small"
+						sx={ { height: 20, fontSize: 11.5, fontWeight: 700, bgcolor: onTable.tone.bg, color: onTable.tone.fg, fontVariantNumeric: 'tabular-nums' } }
+					/>
+				</Tooltip>
+			) }
 			{ booking.depositPaid ? (
 				<Chip
 					label={ booking.depositAmount ? `Deposit £${ ( booking.depositAmount / 100 ).toFixed( 2 ) }` : 'Deposit paid' }
