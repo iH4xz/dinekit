@@ -1,6 +1,6 @@
-=== DineKit ===
+=== DineKit – Restaurant Menu, Online Ordering, Table Reservations & POS ===
 Contributors: weblevelup
-Tags: restaurant menu, qr menu, food menu, allergen, restaurant
+Tags: restaurant menu, online ordering, restaurant reservations, qr menu, allergen
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
@@ -43,7 +43,7 @@ DineKit turns WordPress into a complete, commission-free restaurant platform —
 
 **Bookings & events**
 
-* **Commission-free table bookings** — a drag-and-drop floor plan with joinable tables, a public booking form (block + `[dinekit_booking]` shortcode) with live availability, waitlist and covers-per-hour pacing, deposits, and a booking diary with email notifications and printable slips.
+* **Commission-free table reservations** — take bookings on a drag-and-drop floor plan with joinable tables, via a public reservation form (block + `[dinekit_booking]` shortcode) with live availability, waitlist and covers-per-hour pacing, deposits, and a booking diary with email notifications and printable slips.
 * **Full-width service timeline** — the whole service at a glance; drag to move a booking, click to seat or edit.
 * **Set-menu events with per-guest pre-orders** via a share link — guests choose their courses and flag allergens; the kitchen gets a consolidated prep sheet.
 
@@ -71,6 +71,9 @@ Everything listed above is free — the menus, ordering, bookings, the POS, loya
 
 = Do I need special hardware for the POS? =
 No. Take Order runs in any browser on any tablet, laptop or phone. For card-present payments you can add any standard Stripe smart reader (bought outright from Stripe — no leases), and kitchen tickets can print via your browser or be emailed straight to a kitchen printer.
+
+= Does DineKit take table reservations? =
+Yes — commission-free table reservations with live availability, deposits, a waitlist and a booking diary. Diners book from a form on your own site (block or shortcode); no third-party reservation platform, no per-cover fees, and the guest list stays yours.
 
 = Does it work with my theme? =
 Yes. Menu output is self-contained with its own scoped styles, and works on both block and classic themes.
