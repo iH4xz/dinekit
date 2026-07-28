@@ -501,6 +501,57 @@
 			return slots.slice( 0, 40 );
 		}
 
+		// Grey out fulfilment times the kitchen is already full for, so a diner
+		// doesn't pick one and only find out when their order is refused at the
+		// very end. Purely a courtesy: place_order re-checks server-side and is
+		// still the authority, so a stale answer here can't oversell a slot.
+		function markFullSlots( sel ) {
+			var times = [];
+			for ( var i = 0; i < sel.options.length; i++ ) {
+				times.push( sel.options[ i ].value );
+			}
+			if ( ! times.length || ! cfg.restUrl ) {
+				return;
+			}
+			fetch( cfg.restUrl + 'checkout-slots?times=' + encodeURIComponent( times.join( ',' ) ), { credentials: 'same-origin' } )
+				.then( function ( r ) {
+					return r.ok ? r.json() : null;
+				} )
+				.then( function ( d ) {
+					if ( ! d || ! d.full || ! d.full.length ) {
+						return;
+					}
+					var full = {};
+					d.full.forEach( function ( v ) {
+						full[ v ] = 1;
+					} );
+					var selectedWentFull = false;
+					for ( var i = 0; i < sel.options.length; i++ ) {
+						var o = sel.options[ i ];
+						if ( full[ o.value ] ) {
+							o.disabled = true;
+							o.textContent = o.textContent + ' — ' + ( t.slotFull || 'fully booked' );
+							if ( o.selected ) {
+								selectedWentFull = true;
+							}
+						}
+					}
+					// If what was pre-selected is one of them, move to the first
+					// time that's still open rather than leaving a dead choice.
+					if ( selectedWentFull ) {
+						for ( var j = 0; j < sel.options.length; j++ ) {
+							if ( ! sel.options[ j ].disabled ) {
+								sel.selectedIndex = j;
+								break;
+							}
+						}
+					}
+				} )
+				.catch( function () {
+					// Availability is a nicety — never let it block checkout.
+				} );
+		}
+
 		function renderCheckout() {
 			var box = el( 'div', 'dinekit-order__checkout-box' );
 			var back = el( 'button', 'dinekit-order__back', '‹ ' + ( t.back || 'Back to menu' ) );
@@ -587,6 +638,7 @@
 			} );
 			whenL.appendChild( whenSel );
 			form.appendChild( whenL );
+			markFullSlots( whenSel );
 
 			form.appendChild( field( 'notes', t.notes || 'Notes', 'textarea' ) );
 

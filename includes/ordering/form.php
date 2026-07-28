@@ -106,6 +106,7 @@ function render( $menu_id = 0, $heading = '' ) {
 				'needAddress'   => __( 'Please enter your delivery address.', 'dinekit' ),
 				'deliverMsg'    => __( 'We’ll deliver it to you.', 'dinekit' ),
 				'asap'          => __( 'As soon as possible', 'dinekit' ),
+				'slotFull'      => __( 'fully booked', 'dinekit' ),
 				'name'          => __( 'Name', 'dinekit' ),
 				'email'         => __( 'Email', 'dinekit' ),
 				'phone'         => __( 'Phone', 'dinekit' ),
