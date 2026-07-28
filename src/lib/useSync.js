@@ -12,6 +12,8 @@
 //   • network errors    → exponential backoff to 60s
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { replayQueue } from './offlineReplay';
+import { offlineQueue } from './offlineQueue';
 
 const ACTIVE_MS = 10000;
 const IDLE_MS = 45000;
@@ -53,7 +55,16 @@ function schedule() {
 }
 
 async function poll() {
-	// Pause entirely while the tab is hidden; visibilitychange re-kicks us.
+	// Drain any writes still held on the device FIRST, and independently of
+	// everything below. Two reasons this is not tied to a connectivity
+	// transition: a write can be queued during a blip the heartbeat never
+	// noticed (so there is no offline→online edge to hang it on), and a hidden
+	// tab is exactly when a tablet is sitting in an apron pocket — getting the
+	// orders to the server matters more there than pausing to save a request.
+	if ( offlineQueue.pending() > 0 ) {
+		replayQueue();
+	}
+	// Pause the heartbeat while the tab is hidden; visibilitychange re-kicks us.
 	if ( typeof document !== 'undefined' && document.hidden ) {
 		schedule();
 		return;
@@ -80,6 +91,13 @@ async function poll() {
 		} );
 		if ( changed || online !== wasOnline ) {
 			notify();
+		}
+		// A successful heartbeat is PROOF the server is reachable (better than the
+		// browser's 'online' event, which also fires on a captive-portal wifi that
+		// can't reach us) — so on recovery, drain immediately rather than waiting
+		// for the next poll.
+		if ( ! wasOnline && offlineQueue.pending() > 0 ) {
+			replayQueue().then( () => kick() );
 		}
 	} catch ( e ) {
 		errorStreak += 1;
@@ -127,6 +145,20 @@ export function startSync() {
 		window.addEventListener( ev, markActivity, { passive: true } )
 	);
 	poll();
+	// A tablet that was closed mid-outage reopens with writes still queued —
+	// flush them on boot, not only on a live reconnect.
+	offlineQueue.refresh().then( ( n ) => {
+		if ( n > 0 ) {
+			replayQueue();
+		}
+	} );
+}
+
+// How many writes are still only on this device. Drives the "N unsynced" pill.
+export function usePendingWrites() {
+	const [ n, setN ] = useState( offlineQueue.pending() );
+	useEffect( () => offlineQueue.subscribe( setN ), [] );
+	return n;
 }
 
 // A number that increments whenever `channel` changes on the server. Put it in a

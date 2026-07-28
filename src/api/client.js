@@ -1,8 +1,53 @@
 // Thin REST client for the dinekit/v1 API. Reads config injected by PHP
 // (window.DINEKIT) — restUrl + nonce.
 import { saveBus } from '../lib/saveBus';
+import { offlineQueue } from '../lib/offlineQueue';
 
 const cfg = window.DINEKIT || {};
+
+// The ONLY writes that may be held in the offline queue. Deliberately an
+// allowlist rather than a denylist: a new endpoint is un-queueable until someone
+// decides it is safe to replay. Everything here either sets an absolute value or
+// carries an idempotency ref the server dedups on (see the Phase A notes in
+// includes/ordering/rest.php), so a replay can never double-apply.
+//
+// Card / Stripe / refund paths are absent BY DESIGN — real money movement needs
+// a live authorisation and must fail loudly instead of being deferred.
+const QUEUE_ACTIONS = [ 'fire', 'void_line', 'set_charges', 'transfer' ];
+
+function queueEntry( method, path, body ) {
+	const clean = path.replace( /^\//, '' );
+	const data = body || {};
+
+	// Open a tab / start a takeaway order.
+	if ( 'POST' === method && 'orders' === clean ) {
+		const queueable = [ 'dine_in', 'takeaway' ].includes( data.channel ) && !! data.clientRef;
+		return queueable ? { method, path: clean, body: data, createsTemp: data.tempId } : null;
+	}
+
+	// Add a round to an existing (or offline-created) tab.
+	const lines = clean.match( /^orders\/(-?\d+)\/lines$/ );
+	if ( 'POST' === method && lines && data.ref ) {
+		const id = Number( lines[ 1 ] );
+		return { method, path: clean, body: data, tempId: offlineQueue.isTempId( id ) ? id : 0 };
+	}
+
+	const patch = clean.match( /^orders\/(-?\d+)$/ );
+	if ( 'PATCH' === method && patch && data.ref ) {
+		const cashTender = 'tender' === data.action && 'cash' === data.tenderType;
+		if ( ! QUEUE_ACTIONS.includes( data.action ) && ! cashTender ) {
+			return null;
+		}
+		const id = Number( patch[ 1 ] );
+		return { method, path: clean, body: data, tempId: offlineQueue.isTempId( id ) ? id : 0 };
+	}
+
+	return null;
+}
+
+// True when a write was deferred to the offline queue rather than failing. Call
+// sites use this to fold the change in locally instead of surfacing an error.
+export const isQueued = ( e ) => !! ( e && e.queued );
 
 async function request( method, path, body ) {
 	// Any write drives the global save-status pill so nothing saves silently.
@@ -12,15 +57,35 @@ async function request( method, path, body ) {
 	}
 	let ok = false;
 	try {
-		const res = await fetch( cfg.restUrl + path.replace( /^\//, '' ), {
-			method,
-			credentials: 'same-origin',
-			headers: {
-				'Content-Type': 'application/json',
-				'X-WP-Nonce': cfg.nonce,
-			},
-			body: body ? JSON.stringify( body ) : undefined,
-		} );
+		let res;
+		try {
+			res = await fetch( cfg.restUrl + path.replace( /^\//, '' ), {
+				method,
+				credentials: 'same-origin',
+				headers: {
+					'Content-Type': 'application/json',
+					'X-WP-Nonce': cfg.nonce,
+				},
+				body: body ? JSON.stringify( body ) : undefined,
+			} );
+		} catch ( netErr ) {
+			// fetch() rejects ONLY on a network-level failure (connection dropped,
+			// DNS, CORS) — an HTTP 500 still resolves with res.ok === false. That
+			// distinction is exactly what makes queueing safe here: we defer a write
+			// the server never saw an answer for, never one it actively rejected.
+			const entry = queueEntry( method, path, body );
+			if ( ! entry ) {
+				throw netErr;
+			}
+			await offlineQueue.enqueue( entry );
+			// It IS saved — on this device — so the save pill stays green and the
+			// offline banner + unsynced marks carry the real state.
+			ok = true;
+			const queued = new Error( 'Saved on this device — waiting to sync.' );
+			queued.queued = true;
+			queued.entry = entry;
+			throw queued;
+		}
 
 		if ( ! res.ok ) {
 			let message = `Request failed (${ res.status })`;
@@ -172,7 +237,9 @@ export const api = {
 	updateOrder: ( id, data ) => request( 'PATCH', `orders/${ id }`, data ),
 	// POS (in-house order taking).
 	getPosMenu: ( menu ) => request( 'GET', 'pos/menu' + ( menu ? '?menu=' + menu : '' ) ),
-	addOrderLines: ( id, items ) => request( 'POST', `orders/${ id }/lines`, { items } ),
+	// `ref` is the idempotency key for this batch — always sent, so a reply lost
+	// mid-drop can't become a duplicate round when the queue replays.
+	addOrderLines: ( id, items, ref ) => request( 'POST', `orders/${ id }/lines`, ref ? { items, ref } : { items } ),
 	tableHistory: ( tableId ) => request( 'GET', `orders/table/${ tableId }/history` ),
 	setItemStock: ( itemId, out ) => request( 'POST', 'pos/item-stock', { itemId, out } ),
 	payStatus: ( token ) => request( 'GET', 'pay/' + encodeURIComponent( token ) ),

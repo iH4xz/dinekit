@@ -421,6 +421,22 @@ function update_order( $request ) {
 	$action   = (string) $request->get_param( 'action' );
 	$statuses = Ordering\statuses();
 
+	// Idempotency: a write queued while the tablet was offline carries a stable
+	// ref that was also sent on the original (unanswered) attempt. If we already
+	// applied that ref, return the order untouched rather than doing it twice —
+	// without this, replaying a `void_line` would remove a second line and a
+	// `fire` would open a second kitchen round.
+	$action_ref = sanitize_text_field( (string) $request->get_param( 'ref' ) );
+	if ( '' !== $action_ref ) {
+		$applied_refs = json_decode( (string) get_post_meta( $id, 'dinekit_order_applied_refs', true ), true );
+		$applied_refs = is_array( $applied_refs ) ? $applied_refs : array();
+		if ( in_array( $action_ref, $applied_refs, true ) ) {
+			return rest_ensure_response( order_response( $id ) );
+		}
+		$applied_refs[] = $action_ref;
+		update_post_meta( $id, 'dinekit_order_applied_refs', wp_json_encode( array_slice( $applied_refs, -200 ) ) );
+	}
+
 	// Rejecting or cancelling releases/refunds the payment — a sensitive action
 	// gated by its own permission (admins always pass).
 	if ( 'reject' === $action || 'refund' === $action || 'cancelled' === (string) $request->get_param( 'status' ) ) {

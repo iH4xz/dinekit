@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, Stack, Typography, Button, IconButton, Chip, CircularProgress, Modal, ToggleButton, ToggleButtonGroup } from '../ui';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddIcon from '@mui/icons-material/Add';
@@ -14,10 +14,13 @@ import PointOfSaleIcon from '@mui/icons-material/PointOfSale';
 import GridViewIcon from '@mui/icons-material/GridView';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import HistoryIcon from '@mui/icons-material/History';
+import CloudOffIcon from '@mui/icons-material/CloudOff';
 import { tokens } from '../theme';
-import { api } from '../api/client';
+import { api, isQueued } from '../api/client';
 import FloorCanvas from './FloorCanvas';
-import { useSyncRevision } from '../lib/useSync';
+import { useSyncRevision, useOnline } from '../lib/useSync';
+import { offlineQueue } from '../lib/offlineQueue';
+import { indexMenu, mirrorLine, localOrder, fold, isUnsynced } from '../lib/posOffline';
 import { printDoc, esc } from '../lib/print';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
@@ -217,6 +220,14 @@ export default function POSView() {
 	const [ zone, setZone ] = useState( 0 ); // selected area for the floor view
 	const [ turnMin, setTurnMin ] = useState( 120 ); // cover duration → occupied-table colour thresholds
 	const [ , setPosTick ] = useState( 0 ); // 30s heartbeat so table timers tick
+	const [ offlineNote, setOfflineNote ] = useState( '' ); // transient "held on this device" explainer
+	const online = useOnline();
+	// Prices for the offline mirror come from the menu the pad already loaded —
+	// never invented, so a bill built during an outage matches the real one.
+	const menuIndex = useMemo( () => indexMenu( sections ), [ sections ] );
+	// Mirror of `orders` so the temp-id resolve below can read the current list
+	// without making that effect depend on the list it sets.
+	const ordersRef = useRef( [] );
 	const caps = ( typeof window !== 'undefined' && window.DINEKIT && window.DINEKIT.caps ) || {};
 	// Keep the live floor's on-table timers moving.
 	useEffect( () => {
@@ -257,19 +268,43 @@ export default function POSView() {
 		if ( loading ) {
 			return;
 		}
-		api.getOrders().then( ( all ) => {
+		api.getOrders().then( async ( all ) => {
 			const list = ( all || [] ).filter( isOpenTab );
-			setOrders( list );
+			// Tabs opened while offline are still under their temp id. Once the
+			// queue has replayed, the id map tells us which real order each became
+			// — until then we keep showing the local one so the table isn't blank.
+			const resolved = {};
+			const locals = ordersRef.current.filter( ( o ) => offlineQueue.isTempId( o.id ) );
+			for ( const o of locals ) {
+				// eslint-disable-next-line no-await-in-loop
+				const real = await offlineQueue.resolveId( o.id );
+				if ( real ) {
+					resolved[ o.id ] = real;
+				}
+			}
+			setOrders( [ ...list, ...locals.filter( ( o ) => ! resolved[ o.id ] ) ] );
 			setActive( ( a ) => {
 				if ( ! a || ! a.order ) {
 					return a;
 				}
-				const fresh = ( all || [] ).find( ( o ) => o.id === a.order.id );
+				const id = resolved[ a.order.id ] || a.order.id;
+				const fresh = ( all || [] ).find( ( o ) => o.id === id );
 				return fresh ? { ...a, order: fresh } : a;
 			} );
 		} ).catch( () => {} );
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [ ordersRev ] );
+
+	useEffect( () => {
+		ordersRef.current = orders;
+	}, [ orders ] );
+
+	// The explainer is only true while we're down; drop it the moment we're back.
+	useEffect( () => {
+		if ( online ) {
+			setOfflineNote( '' );
+		}
+	}, [ online ] );
 
 	const money = ( n ) => {
 		const v = Number( n || 0 ).toFixed( 2 );
@@ -299,13 +334,57 @@ export default function POSView() {
 		if ( ! active ) {
 			return;
 		}
+		const payload = { ...line, course };
+		// If we're down and can't price this item from the menu already on the
+		// device, refuse it up front. Queueing a line the pad can't show would
+		// mean it silently materialised on the bill after reconnect.
+		const mirrored = ! online ? mirrorLine( menuIndex, payload ) : null;
+		if ( ! online && ! mirrored ) {
+			setOfflineNote( 'That item can’t be added while offline — its price isn’t on this device.' );
+			return;
+		}
 		setBusy( true );
+		const ref = offlineQueue.newRef();
 		try {
-			const payload = { ...line, course };
-			const order = active.order
-				? await api.addOrderLines( active.order.id, [ payload ] )
-				: await api.createOrder( { channel: active.takeaway ? 'takeaway' : 'dine_in', tableId: active.tableId, items: [ payload ] } );
-			syncOrder( order );
+			if ( active.order ) {
+				syncOrder( await api.addOrderLines( active.order.id, [ payload ], ref ) );
+			} else {
+				// A tab opened offline needs an id NOW so the next tap has something
+				// to append to. It's negative, so it can never be mistaken for a real
+				// order; the queue maps it to the real id once the create replays.
+				const tempId = offlineQueue.newTempId();
+				syncOrder( await api.createOrder( {
+					channel: active.takeaway ? 'takeaway' : 'dine_in',
+					tableId: active.tableId,
+					items: [ payload ],
+					clientRef: ref,
+					tempId,
+				} ) );
+			}
+		} catch ( e ) {
+			if ( ! isQueued( e ) ) {
+				throw e;
+			}
+			// Held on this device — show it priced from the menu we already have.
+			// The server re-prices it for real when the queue drains.
+			//
+			// Recomputed here rather than reusing the pre-check: the heartbeat
+			// lags the actual drop, so `online` can still be true on the write
+			// that first discovers we're down.
+			const priced = mirrored || mirrorLine( menuIndex, payload );
+			if ( ! priced ) {
+				setOfflineNote( 'That item can’t be added while offline — its price isn’t on this device.' );
+			} else if ( active.order ) {
+				syncOrder( fold.addLines( active.order, [ priced ] ) );
+			} else {
+				syncOrder( localOrder( {
+					tempId: e.entry.createsTemp,
+					channel: active.takeaway ? 'takeaway' : 'dine_in',
+					tableId: active.tableId,
+					tableName: active.tableName,
+					items: [ priced ],
+				} ) );
+			}
 		} finally {
 			setBusy( false );
 		}
@@ -340,9 +419,17 @@ export default function POSView() {
 		}
 		setBusy( true );
 		try {
-			const updated = await api.updateOrder( active.order.id, { action: 'transfer', tableId: t.id } );
+			const updated = await api.updateOrder( active.order.id, { action: 'transfer', tableId: t.id, ref: offlineQueue.newRef() } );
 			setActive( ( a ) => ( { ...a, tableId: t.id, tableName: t.name, order: updated } ) );
 			setOrders( ( os ) => os.map( ( o ) => ( o.id === updated.id ? updated : o ) ) );
+			setMoveOpen( false );
+		} catch ( e ) {
+			if ( ! isQueued( e ) ) {
+				throw e;
+			}
+			const moved = { ...active.order, tableId: t.id, table: t.name, unsynced: true };
+			setActive( ( a ) => ( { ...a, tableId: t.id, tableName: t.name, order: moved } ) );
+			setOrders( ( os ) => os.map( ( o ) => ( o.id === moved.id ? moved : o ) ) );
 			setMoveOpen( false );
 		} finally { setBusy( false ); }
 	};
@@ -353,9 +440,19 @@ export default function POSView() {
 		}
 		setBusy( true );
 		try {
-			syncOrder( await api.updateOrder( active.order.id, { action: 'fire' } ) );
+			syncOrder( await api.updateOrder( active.order.id, { action: 'fire', ref: offlineQueue.newRef() } ) );
 			setJustFired( true );
 			window.setTimeout( () => setJustFired( false ), 2500 );
+		} catch ( e ) {
+			if ( ! isQueued( e ) ) {
+				throw e;
+			}
+			// The round is stamped locally so the pad's timing strip keeps working;
+			// the kitchen screen only sees it once we're back on the network.
+			syncOrder( fold.fire( active.order ) );
+			setJustFired( true );
+			window.setTimeout( () => setJustFired( false ), 2500 );
+			setOfflineNote( 'Fired on this device — the kitchen screen will get it when the connection is back. Tell the pass.' );
 		} finally {
 			setBusy( false );
 		}
@@ -366,7 +463,12 @@ export default function POSView() {
 		}
 		setBusy( true );
 		try {
-			syncOrder( await api.updateOrder( active.order.id, { action: 'void_line', line: idx } ) );
+			syncOrder( await api.updateOrder( active.order.id, { action: 'void_line', line: idx, ref: offlineQueue.newRef() } ) );
+		} catch ( e ) {
+			if ( ! isQueued( e ) ) {
+				throw e;
+			}
+			syncOrder( fold.voidLine( active.order, idx ) );
 		} finally {
 			setBusy( false );
 		}
@@ -478,6 +580,9 @@ export default function POSView() {
 							{ active.order && active.order.placed && (
 								<Chip size="small" label={ `⏱ ${ durMins( minsSince( active.order.placed ) ) }` } sx={ { fontWeight: 700, fontVariantNumeric: 'tabular-nums', bgcolor: tokens.accentSoft, color: tokens.accentDark } } />
 							) }
+							{ isUnsynced( active.order ) && (
+								<Chip size="small" icon={ <CloudOffIcon sx={ { fontSize: 14 } } /> } label="Not synced yet" sx={ { fontWeight: 700, bgcolor: tokens.amberSoft, color: tokens.amber } } />
+							) }
 						</Stack>
 					<Typography sx={ { fontSize: 13, color: tokens.muted } }>
 						{ active.order ? `Open tab · ${ money( total ) }` : ( active.takeaway ? 'New counter order' : 'New tab — add the first item' ) }
@@ -509,6 +614,12 @@ export default function POSView() {
 
 			{ histOpen && active.tableId ? (
 					<TableHistorySheet tableId={ active.tableId } tableName={ active.tableName } money={ money } onClose={ () => setHistOpen( false ) } />
+				) : null }
+				{ offlineNote ? (
+					<Stack direction="row" alignItems="center" spacing={ 1 } sx={ { mb: 2, px: 1.5, py: 1, borderRadius: 2, bgcolor: tokens.amberSoft, border: `1px solid ${ tokens.amber }`, color: tokens.amber } }>
+						<CloudOffIcon sx={ { fontSize: 18 } } />
+						<Typography sx={ { fontSize: 12.5, fontWeight: 600 } }>{ offlineNote }</Typography>
+					</Stack>
 				) : null }
 				<Stack direction={ { xs: 'column', md: 'row' } } spacing={ 2 } alignItems="flex-start">
 				{ /* Menu grid */ }
@@ -565,6 +676,9 @@ export default function POSView() {
 										<Stack direction="row" spacing={ 0.75 } sx={ { mt: 0.25 } }>
 											{ l.course ? <Chip label={ l.course } size="small" sx={ { height: 17, fontSize: 10.5, bgcolor: tokens.soft, color: tokens.muted } } /> : null }
 											<Chip label={ l.fired ? 'Fired' : 'New' } size="small" sx={ { height: 17, fontSize: 10.5, bgcolor: l.fired ? tokens.greenSoft : tokens.amberSoft, color: l.fired ? tokens.green : tokens.amber, fontWeight: 700 } } />
+											{ l.unsynced ? (
+												<Chip label="On this device" size="small" sx={ { height: 17, fontSize: 10.5, bgcolor: 'transparent', color: tokens.amber, fontWeight: 700, border: `1px solid ${ tokens.amber }` } } />
+											) : null }
 										</Stack>
 									</Box>
 									<Typography sx={ { fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' } }>{ money( l.lineTotal ) }</Typography>
@@ -832,6 +946,7 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled, ser
 	const [ memberQ, setMemberQ ] = useState( '' );
 	const [ memberResults, setMemberResults ] = useState( null );
 	const [ busy, setBusy ] = useState( false );
+	const online = useOnline();
 	const caps = ( typeof window !== 'undefined' && window.DINEKIT && window.DINEKIT.caps ) || {};
 
 	useEffect( () => { if ( 'completed' === order.status ) { onSettled(); } }, [ order.status ] );
@@ -868,9 +983,27 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled, ser
 		if ( amount <= 0 ) {
 			return;
 		}
+		// Cash is the one tender that still works with the line down — it's what a
+		// restaurant falls back on, and the server dedups the queued ref so a
+		// replay can never take the money twice. Everything else needs a live
+		// authorisation, so it must fail loudly rather than be deferred.
+		if ( ! online && 'cash' !== type ) {
+			setReaderMsg( 'Offline — only cash can be taken until the connection is back.' );
+			return;
+		}
 		setBusy( true );
+		const ref = offlineQueue.newRef();
 		try {
-			const updated = await api.updateOrder( order.id, { action: 'tender', tenderType: type, amount } );
+			let updated;
+			try {
+				updated = await api.updateOrder( order.id, { action: 'tender', tenderType: type, amount, ref } );
+			} catch ( e ) {
+				if ( ! isQueued( e ) ) {
+					throw e;
+				}
+				updated = fold.tender( order, type, amount, ref );
+				setReaderMsg( 'Cash recorded on this device — it will post to the books when you reconnect.' );
+			}
 			onUpdate( updated );
 			if ( 'completed' === updated.status ) {
 				// Settled in full → close the tab cleanly. We deliberately do NOT
@@ -888,6 +1021,11 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled, ser
 					setSharesPaid( ( p ) => p + 1 );
 				}
 			}
+		} catch ( e ) {
+			// A non-cash tender that hits a dead line lands here (it is never
+			// queued). The heartbeat may not have flipped the banner yet, so say
+			// plainly what happened instead of failing silently.
+			setReaderMsg( `${ type === 'cash' ? 'Payment' : 'Card payment' } didn’t go through — ${ e.message }` );
 		} finally { setBusy( false ); }
 	};
 	// Empty cash box = exact amount; a smaller amount = a partial payment.
@@ -1154,13 +1292,15 @@ function BillSheet( { order, money, tableName, onUpdate, onClose, onSettled, ser
 					<Button variant="contained" disabled={ busy || balance <= 0 } onClick={ takeCash }>Take cash</Button>
 					{ change > 0 && <Typography sx={ { fontWeight: 700, color: tokens.green } }>Change { money( change ) }</Typography> }
 				</Stack>
+				{ /* Every non-cash tender needs a live authorisation, so they're all
+				     off while we're down — deliberately disabled rather than queued. */ }
 				<Stack direction="row" spacing={ 1 } flexWrap="wrap" useFlexGap>
-					<Button variant="outlined" disabled={ busy || balance <= 0 } onClick={ () => tender( 'card', charge ) }>Card · { money( charge ) }</Button>
-					<Button variant="outlined" disabled={ busy || balance <= 0 } onClick={ () => tender( 'voucher', charge ) }>Voucher</Button>
-					<Button variant="outlined" disabled={ busy || balance <= 0 || ! caps.refunds } onClick={ () => tender( 'comp', balance ) }>Comp</Button>
-					<Button variant="outlined" startIcon={ <QrCode2Icon /> } disabled={ busy || balance <= 0 } onClick={ showQr }>Pay by QR</Button>
+					<Button variant="outlined" disabled={ busy || balance <= 0 || ! online } onClick={ () => tender( 'card', charge ) }>Card · { money( charge ) }</Button>
+					<Button variant="outlined" disabled={ busy || balance <= 0 || ! online } onClick={ () => tender( 'voucher', charge ) }>Voucher</Button>
+					<Button variant="outlined" disabled={ busy || balance <= 0 || ! caps.refunds || ! online } onClick={ () => tender( 'comp', balance ) }>Comp</Button>
+					<Button variant="outlined" startIcon={ <QrCode2Icon /> } disabled={ busy || balance <= 0 || ! online } onClick={ showQr }>Pay by QR</Button>
 					{ term && term.paired && term.ready && (
-						<Button variant="outlined" startIcon={ <PointOfSaleIcon /> } disabled={ busy || balance <= 0 } onClick={ payReader }>Card reader · { money( charge ) }</Button>
+						<Button variant="outlined" startIcon={ <PointOfSaleIcon /> } disabled={ busy || balance <= 0 || ! online } onClick={ payReader }>Card reader · { money( charge ) }</Button>
 					) }
 					<Box sx={ { flex: 1 } } />
 					<Button variant="text" onClick={ () => printReceipt( order, 0 ) }>Print receipt</Button>

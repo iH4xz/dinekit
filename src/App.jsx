@@ -48,7 +48,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import SupportAgentIcon from '@mui/icons-material/SupportAgent';
 import SupportView from './components/SupportView';
 import Wizard from './components/Wizard';
-import { startSync, useOnline } from './lib/useSync';
+import { startSync, useOnline, usePendingWrites } from './lib/useSync';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
 
 // Grouped so the sidebar reads like a product, not a feature dump.
@@ -230,9 +230,16 @@ export default function App() {
 // heartbeat flips it, not just the browser flag).
 function OfflineBanner() {
 	const online = useOnline();
-	if ( online ) {
+	const queued = usePendingWrites();
+
+	// Stay up after the connection returns while writes are still draining —
+	// "back online" is not the same as "your orders are safe on the server", and
+	// staff need to see the difference before they close the tablet.
+	if ( online && queued === 0 ) {
 		return null;
 	}
+	const syncing = online && queued > 0;
+	const held = queued === 1 ? '1 change is' : `${ queued } changes are`;
 	return (
 		<Box
 			role="status"
@@ -242,15 +249,17 @@ function OfflineBanner() {
 				gap: 1,
 				px: 2,
 				py: 1,
-				bgcolor: tokens.amberSoft,
-				borderBottom: `1px solid ${ tokens.amber }`,
-				color: tokens.amber,
+				bgcolor: syncing ? tokens.accentSoft : tokens.amberSoft,
+				borderBottom: `1px solid ${ syncing ? tokens.accentDark : tokens.amber }`,
+				color: syncing ? tokens.accentDark : tokens.amber,
 				fontSize: 13,
 				fontWeight: 600,
 			} }
 		>
 			<CloudOffIcon sx={ { fontSize: 18 } } />
-			You’re offline — DineKit will reconnect automatically. Take card payments only once you’re back online.
+			{ syncing
+				? `Back online — syncing ${ held } still saving. Keep this tab open.`
+				: `You’re offline — DineKit will reconnect automatically${ queued > 0 ? `, and ${ held } saved on this device` : '' }. Take card payments only once you’re back online.` }
 		</Box>
 	);
 }
