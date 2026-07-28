@@ -123,7 +123,7 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 == Screenshots ==
 
 1. Your menu on any website — sections, prices, dietary filters and UK-14 allergen icons.
-2. The Menu Builder — sections and dishes with photos, allergens and multiple prices. Everything autosaves.
+2. The Menu Builder — sections and dishes with allergens and multiple prices, all autosaved. Bulk-edit the whole menu in a spreadsheet with CSV export and import.
 3. Design & Preview — six templates plus layout and colour controls, with a live preview and a copy-paste shortcode.
 4. Commission-free online ordering for diners — takeaway, collection and delivery, straight from your own site.
 5. The live orders board — takeaway, collection and delivery in one place, with kitchen tickets. You keep 100%.
@@ -134,14 +134,16 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 10. The drag-and-drop floor plan — zones, joinable tables and covers, driving live booking availability.
 11. Kitchen Display — a live New → Preparing → Ready board; every fired round is its own ticket with a wait timer, and a full-screen mode for a kitchen TV.
 12. Staff rota — group the week by role in colour-coded bands, see each person's scheduled hours (with over-contract warnings), and approve holiday requests right on the rota.
+13. Service carries on when the internet drops — keep opening tables, adding rounds and firing to the kitchen. Anything not yet sent is clearly marked "on this device" and syncs itself the moment you're back online.
 
 == Changelog ==
 
 = 1.2.14 =
 * New: keep serving when the internet drops — the till carries on working through an outage. Open a table, add rounds, fire to the kitchen and settle up in cash exactly as normal; everything is held safely on the tablet, marked "on this device", and posts itself to your books the moment you reconnect. Nothing is lost and nothing is charged twice, even if the connection died halfway through sending. A banner shows how many changes are still waiting, so nobody closes the tablet too early. Card, voucher and comp payments are switched off while you're offline, because those need a live authorisation.
 * New: bulk-edit your menu in a spreadsheet — export your whole menu to CSV, tweak prices, descriptions and dishes in Excel or Google Sheets, and re-import to update everything at once. Dishes are matched by name within each section, so re-importing updates your menu rather than duplicating it.
-* New: cap orders per time slot — set how many online orders the kitchen can take in each time slot so a rush doesn't swamp the pass. When a slot is full, the diner is asked to pick another time.
+* New: cap orders per time slot — set how many online orders the kitchen can take in each time slot so a rush doesn't swamp the pass. Slots that are already full are greyed out in the diner's time picker, so they choose a time you can actually cook instead of being turned away at the last step.
 * New: spot repeat no-shows — a guest who has failed to turn up before now gets a red flag on their booking in the diary and on their card in Guests, so you can decide whether to ask for a deposit.
+* Fixed: settling a bill now flags the table as needing bussing on the floor plan. It previously never did, so a table you'd just taken payment for didn't show as needing clearing. Any payment type — cash, card, reader, voucher or comp — now marks it, and tapping the table clears it as designed.
 * Fixed: buttons and toggles no longer overflow the screen edge on a phone.
 
 = 1.2.13 =
