@@ -4,7 +4,7 @@ Tags: restaurant menu, online ordering, restaurant reservations, qr menu, allerg
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.2.13
+Stable tag: 1.2.14
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -38,6 +38,7 @@ DineKit turns WordPress into a complete, commission-free restaurant platform —
 * **Tabs with coursing** — build each table's order, fire courses to the kitchen in rounds.
 * **Bill splitting** — evenly, by item, or partial payments; service charge and tips.
 * **Every tender** — cash with change calculation, card via a Stripe smart reader, pay-by-QR from the guest's phone, vouchers and comps; manager-gated voids.
+* **Keeps working when the internet drops** — carry on opening tables, adding rounds, firing to the kitchen and taking cash through an outage. Everything is held on the tablet and syncs itself the moment you're back, with nothing lost and nothing charged twice.
 * **Cash-up** with opening float and X/Z reports at close.
 * **Loyalty built in** — members earn points on spend and redeem them as a bill discount.
 
@@ -55,7 +56,7 @@ DineKit turns WordPress into a complete, commission-free restaurant platform —
 * **Reports** — covers, revenue, best-selling dishes and no-show rate, with CSV export.
 * **Direct support from your dashboard** — message the DineKit team without leaving WordPress (optional; see External Services).
 
-**Install it as an app** on any phone or tablet — the staff app runs from its own home-screen icon, keeps loading through a dropped connection, and **many tablets stay in sync automatically** (an order or booking made on one appears on the others within seconds).
+**Install it as an app** on any phone or tablet — the staff app runs from its own home-screen icon, **keeps taking orders and cash even when the internet drops** (syncing itself once you're back), and **many tablets stay in sync automatically** (an order or booking made on one appears on the others within seconds).
 
 No WooCommerce required and no page builder needed. The menu, allergens and QR codes work with no external accounts; card payments use your own Stripe account (see External Services below). Works with any theme, on any host.
 
@@ -135,6 +136,13 @@ To build the admin app from source: `npm install` then `npm run build` (Vite). S
 12. Staff rota — group the week by role in colour-coded bands, see each person's scheduled hours (with over-contract warnings), and approve holiday requests right on the rota.
 
 == Changelog ==
+
+= 1.2.14 =
+* New: keep serving when the internet drops — the till carries on working through an outage. Open a table, add rounds, fire to the kitchen and settle up in cash exactly as normal; everything is held safely on the tablet, marked "on this device", and posts itself to your books the moment you reconnect. Nothing is lost and nothing is charged twice, even if the connection died halfway through sending. A banner shows how many changes are still waiting, so nobody closes the tablet too early. Card, voucher and comp payments are switched off while you're offline, because those need a live authorisation.
+* New: bulk-edit your menu in a spreadsheet — export your whole menu to CSV, tweak prices, descriptions and dishes in Excel or Google Sheets, and re-import to update everything at once. Dishes are matched by name within each section, so re-importing updates your menu rather than duplicating it.
+* New: cap orders per time slot — set how many online orders the kitchen can take in each time slot so a rush doesn't swamp the pass. When a slot is full, the diner is asked to pick another time.
+* New: spot repeat no-shows — a guest who has failed to turn up before now gets a red flag on their booking in the diary and on their card in Guests, so you can decide whether to ask for a deposit.
+* Fixed: buttons and toggles no longer overflow the screen edge on a phone.
 
 = 1.2.13 =
 * New: the staff rota now groups by role — chefs, servers, bar and so on each get their own colour-coded band, so a busy week reads at a glance (switch back to a flat list any time).
