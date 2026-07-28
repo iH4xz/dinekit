@@ -44,10 +44,16 @@ try {
 		{
 			cwd: __dirname,
 			dot: true,
+			// NOTE: this list is the ONLY thing keeping files out of the shipped
+			// zip — it does not read .gitignore or .distignore. Anything you add
+			// to .gitignore must be added here too, or it ships to wordpress.org.
+			// (v1.1.0 shipped .wordpress-org/ this way; a QA scratch dir under
+			// build/ nearly went out in 1.2.14 and tripled the zip size.)
 			ignore: [
 				'node_modules/**',
 				'src/**',
 				'public/**',
+				'build/**',
 				'.git/**',
 				'.github/**',
 				'.wordpress-org/**',
