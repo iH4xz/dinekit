@@ -376,6 +376,75 @@ function slot_key( $when ) {
 }
 
 /**
+ * Which of the given fulfilment times are already at capacity.
+ *
+ * Answers the public order form's "don't offer a slot the kitchen can't take"
+ * question. The CLIENT sends its candidate times and we map them through
+ * slot_key() here — deliberately, so the bucketing rule lives in exactly one
+ * place. Duplicating it in JS would drift the moment slot_mins changed.
+ *
+ * One query for the whole day rather than one per slot: a public endpoint that
+ * fired 40 meta queries per checkout render would be a gift to anyone looking
+ * for a cheap way to load the site.
+ *
+ * @param string[] $times Candidate times ('asap' or 'HH:MM').
+ * @return string[] The subset that is full. Empty when the throttle is off.
+ */
+function full_slots( $times ) {
+	$s   = namespace\get_settings();
+	$max = (int) $s['slot_max'];
+	if ( $max <= 0 ) {
+		return array();
+	}
+	$counts = namespace\slot_counts_for_day();
+	$full   = array();
+	foreach ( (array) $times as $when ) {
+		$key = namespace\slot_key( $when );
+		if ( isset( $counts[ $key ] ) && $counts[ $key ] >= $max ) {
+			$full[] = $when;
+		}
+	}
+	return $full;
+}
+
+/**
+ * Live order counts per slot key for a day, as slot_key => count.
+ *
+ * @param string $date Y-m-d; defaults to today in site time.
+ * @return array<string,int>
+ */
+function slot_counts_for_day( $date = '' ) {
+	$date   = '' !== $date ? $date : wp_date( 'Y-m-d' );
+	$ids    = get_posts(
+		array(
+			'post_type'      => 'dinekit_order',
+			'post_status'    => 'publish',
+			'posts_per_page' => 500, // phpcs:ignore WordPress.WP.PostsPerPage.posts_per_page_posts_per_page -- one day's orders.
+			'no_found_rows'  => true,
+			'fields'         => 'ids',
+			'meta_query'     => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				array(
+					'key'     => 'dinekit_order_slot',
+					'value'   => $date,
+					'compare' => 'LIKE',
+				),
+			),
+		)
+	);
+	$counts = array();
+	foreach ( $ids as $id ) {
+		if ( 'cancelled' === (string) get_post_meta( $id, 'dinekit_order_status', true ) ) {
+			continue;
+		}
+		$key = (string) get_post_meta( $id, 'dinekit_order_slot', true );
+		if ( '' !== $key ) {
+			$counts[ $key ] = isset( $counts[ $key ] ) ? $counts[ $key ] + 1 : 1;
+		}
+	}
+	return $counts;
+}
+
+/**
  * How many live (non-cancelled) orders already target a given slot key.
  *
  * @param string $slot_key Slot key from slot_key().
@@ -853,5 +922,28 @@ function add_tender( $order_id, $type, $amount, $via = '', $ref = '' ) {
 			require_once DINEKIT_DIR . 'includes/loyalty.php';
 			\DineKit\Loyalty\award( $order_id, $member );
 		}
+		flag_table_for_bussing( $order_id );
 	}
+}
+
+/**
+ * Mark a settled dine-in table as needing bussing, so it shows on the live floor
+ * as "needs clearing" until staff tap it ready.
+ *
+ * Called from wherever a tab actually becomes settled. That is `add_tender()` —
+ * which every till payment routes through (cash, card, Terminal, voucher, comp,
+ * pay-by-QR) — as well as the explicit `close` action. Stamping it only in
+ * `close` left the flag unreachable from the POS, because settling a bill
+ * completes the order via `add_tender()` and never calls `close`.
+ *
+ * @param int $order_id Order id.
+ * @return void
+ */
+function flag_table_for_bussing( $order_id ) {
+	$channel = (string) get_post_meta( $order_id, 'dinekit_order_channel', true );
+	$table   = (int) get_post_meta( $order_id, 'dinekit_order_table_id', true );
+	if ( 'dine_in' !== $channel || ! $table || 'dinekit_table' !== get_post_type( $table ) ) {
+		return;
+	}
+	update_post_meta( $table, 'dinekit_cleaning', current_time( 'mysql' ) );
 }

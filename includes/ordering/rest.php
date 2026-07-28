@@ -142,6 +142,45 @@ function register_routes() {
 			'permission_callback' => '__return_true',
 		)
 	);
+
+	// Public: which fulfilment times are already full. Same naming rule as
+	// /checkout — anything starting "orders" inherits the admin permission.
+	register_rest_route(
+		$ns,
+		'/checkout-slots',
+		array(
+			'methods'             => \WP_REST_Server::READABLE,
+			'callback'            => __NAMESPACE__ . '\\checkout_slots',
+			'permission_callback' => '__return_true',
+		)
+	);
+}
+
+/**
+ * GET /checkout-slots?times=asap,19:00,19:15 — the subset that is at capacity.
+ *
+ * Public and read-only. It reveals only whether a slot is full (never counts or
+ * order details), which is the same thing the diner would learn by trying to
+ * check out. Input is capped and format-validated so it can't be used to make
+ * the site do arbitrary work.
+ *
+ * @param \WP_REST_Request $request Request.
+ * @return \WP_REST_Response
+ */
+function checkout_slots( $request ) {
+	$raw   = (string) $request->get_param( 'times' );
+	$times = array_filter(
+		array_map( 'trim', explode( ',', $raw ) ),
+		static function ( $t ) {
+			return 'asap' === $t || preg_match( '/^\d{1,2}:\d{2}$/', $t );
+		}
+	);
+	$times = array_slice( array_values( $times ), 0, 60 );
+	return rest_ensure_response(
+		array(
+			'full' => $times ? array_values( Ordering\full_slots( $times ) ) : array(),
+		)
+	);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -655,13 +694,8 @@ function update_order( $request ) {
 	} elseif ( 'close' === $action ) {
 		update_post_meta( $id, 'dinekit_order_status', 'completed' );
 		Ordering\log_event( $id, __( 'Tab closed', 'dinekit' ) );
-		// A settled dine-in table is now empty and needs bussing — flag it on the
-		// live floor so staff know which tables to clear before re-seating.
-		$closed_chan  = (string) get_post_meta( $id, 'dinekit_order_channel', true );
-		$closed_table = (int) get_post_meta( $id, 'dinekit_order_table_id', true );
-		if ( 'dine_in' === $closed_chan && $closed_table && 'dinekit_table' === get_post_type( $closed_table ) ) {
-			update_post_meta( $closed_table, 'dinekit_cleaning', current_time( 'mysql' ) );
-		}
+		// Shared with the settle path in add_tender() so the two can't drift.
+		Ordering\flag_table_for_bussing( $id );
 	}
 
 	$status = (string) $request->get_param( 'status' );
