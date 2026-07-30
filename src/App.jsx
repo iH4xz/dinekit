@@ -50,34 +50,7 @@ import SupportView from './components/SupportView';
 import Wizard from './components/Wizard';
 import { startSync, useOnline, usePendingWrites } from './lib/useSync';
 import CloudOffIcon from '@mui/icons-material/CloudOff';
-
-// Grouped so the sidebar reads like a product, not a feature dump.
-const NAV = [
-	{ key: 'home', label: 'Home', icon: <SpaceDashboardIcon fontSize="small" /> },
-	{ key: 'reports', label: 'Reports', icon: <InsightsIcon fontSize="small" /> },
-	{ group: 'Front of house' },
-	{ key: 'bookings', label: 'Bookings', icon: <EventNoteIcon fontSize="small" /> },
-	{ key: 'floor', label: 'Floor Plan', icon: <GridViewIcon fontSize="small" /> },
-	{ key: 'orders', label: 'Orders', icon: <ReceiptLongIcon fontSize="small" /> },
-	{ key: 'kds', label: 'Kitchen Display', icon: <RestaurantIcon fontSize="small" /> },
-	{ key: 'pos', label: 'Take Order', icon: <PointOfSaleIcon fontSize="small" /> },
-	{ key: 'events', label: 'Events', icon: <CelebrationIcon fontSize="small" /> },
-	{ key: 'guests', label: 'Guests', icon: <PeopleAltIcon fontSize="small" /> },
-	{ key: 'reviews', label: 'Reviews', icon: <StarBorderIcon fontSize="small" /> },
-	{ key: 'staff', label: 'Staff', icon: <BadgeIcon fontSize="small" /> },
-	{ group: 'Menu' },
-	{ key: 'builder', label: 'Menu Builder', icon: <RestaurantMenuIcon fontSize="small" /> },
-	{ key: 'design', label: 'Design & Preview', icon: <PaletteIcon fontSize="small" /> },
-	{ key: 'qr', label: 'QR Code', icon: <QrCode2Icon fontSize="small" /> },
-	{ key: 'hours', label: 'Opening Hours', icon: <ScheduleIcon fontSize="small" /> },
-	{ group: 'Setup' },
-	{ key: 'integrations', label: 'Integrations', icon: <ExtensionIcon fontSize="small" /> },
-	{ key: 'emails', label: 'Emails', icon: <MailOutlineIcon fontSize="small" /> },
-	{ key: 'access', label: 'Access Control', icon: <LockIcon fontSize="small" /> },
-	{ key: 'activity', label: 'Activity', icon: <HistoryIcon fontSize="small" /> },
-	{ key: 'settings', label: 'Settings', icon: <SettingsIcon fontSize="small" /> },
-	{ key: 'support', label: 'Support', icon: <SupportAgentIcon fontSize="small" /> },
-];
+import { useI18n } from './lib/i18n';
 
 // Feature gating by business type.
 const DINEIN_ONLY = [ 'bookings', 'floor' ]; // hidden for takeaway-only.
@@ -96,8 +69,8 @@ const NAV_PERM = {
 // Full admins/owners see everything; if caps are somehow absent, fail open.
 const ALL_CAPS = { access: true, owner: true, menu: true, orders: true, refunds: true, bookings: true, events: true, staff: true, settings: true };
 
-function visibleNav( businessType, caps ) {
-	const items = NAV.filter( ( n ) => {
+function visibleNav( businessType, caps, navList ) {
+	const items = navList.filter( ( n ) => {
 		if ( n.group ) {
 			return true; // Resolved in the empty-group pass below.
 		}
@@ -123,6 +96,34 @@ export default function App() {
 	const { view, itemId, navigate } = useRoute();
 	const store = useDineKit();
 	const [ navCollapsed, setNavCollapsed ] = useState( false );
+	const { t } = useI18n();
+
+	const navList = [
+		{ key: 'home', label: t( 'nav.home', 'Home' ), icon: <SpaceDashboardIcon fontSize="small" /> },
+		{ key: 'reports', label: t( 'nav.reports', 'Reports' ), icon: <InsightsIcon fontSize="small" /> },
+		{ group: t( 'nav.group.front', 'Front of house' ) },
+		{ key: 'bookings', label: t( 'nav.bookings', 'Bookings' ), icon: <EventNoteIcon fontSize="small" /> },
+		{ key: 'floor', label: t( 'nav.floor', 'Floor Plan' ), icon: <GridViewIcon fontSize="small" /> },
+		{ key: 'orders', label: t( 'nav.orders', 'Orders' ), icon: <ReceiptLongIcon fontSize="small" /> },
+		{ key: 'kds', label: t( 'nav.kds', 'Kitchen Display' ), icon: <RestaurantIcon fontSize="small" /> },
+		{ key: 'pos', label: t( 'nav.pos', 'Take Order' ), icon: <PointOfSaleIcon fontSize="small" /> },
+		{ key: 'events', label: t( 'nav.events', 'Events' ), icon: <CelebrationIcon fontSize="small" /> },
+		{ key: 'guests', label: t( 'nav.guests', 'Guests' ), icon: <PeopleAltIcon fontSize="small" /> },
+		{ key: 'reviews', label: t( 'nav.reviews', 'Reviews' ), icon: <StarBorderIcon fontSize="small" /> },
+		{ key: 'staff', label: t( 'nav.staff', 'Staff' ), icon: <BadgeIcon fontSize="small" /> },
+		{ group: t( 'nav.group.menu', 'Menu' ) },
+		{ key: 'builder', label: t( 'nav.builder', 'Menu Builder' ), icon: <RestaurantMenuIcon fontSize="small" /> },
+		{ key: 'design', label: t( 'nav.design', 'Design & Preview' ), icon: <PaletteIcon fontSize="small" /> },
+		{ key: 'qr', label: t( 'nav.qr', 'QR Code' ), icon: <QrCode2Icon fontSize="small" /> },
+		{ key: 'hours', label: t( 'nav.hours', 'Opening Hours' ), icon: <ScheduleIcon fontSize="small" /> },
+		{ group: t( 'nav.group.setup', 'Setup' ) },
+		{ key: 'integrations', label: t( 'nav.integrations', 'Integrations' ), icon: <ExtensionIcon fontSize="small" /> },
+		{ key: 'emails', label: t( 'nav.emails', 'Emails' ), icon: <MailOutlineIcon fontSize="small" /> },
+		{ key: 'access', label: t( 'nav.access', 'Access Control' ), icon: <LockIcon fontSize="small" /> },
+		{ key: 'activity', label: t( 'nav.activity', 'Activity' ), icon: <HistoryIcon fontSize="small" /> },
+		{ key: 'settings', label: t( 'nav.settings', 'Settings' ), icon: <SettingsIcon fontSize="small" /> },
+		{ key: 'support', label: t( 'nav.support', 'Support' ), icon: <SupportAgentIcon fontSize="small" /> },
+	];
 
 	// Boot the shared live-sync poller once, so every screen can react to changes
 	// made on other tablets without pounding the server on individual timers.
@@ -140,7 +141,7 @@ export default function App() {
 	}
 
 	const caps = ( window.DINEKIT && window.DINEKIT.caps ) || ALL_CAPS;
-	const nav = visibleNav( store.data && store.data.businessType, caps );
+	const nav = visibleNav( store.data && store.data.businessType, caps, navList );
 	const activeView = nav.some( ( n ) => n.key === view ) ? view : 'home';
 	// Installed/standalone app has no wp-admin bar, so fill the full viewport.
 	const shellHeight = window.DINEKIT && window.DINEKIT.standalone ? '100vh' : 'calc(100vh - 32px)';
@@ -158,7 +159,7 @@ export default function App() {
 			<Box sx={ { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' } }>
 				<Topbar
 					saveStatus={ store.saveStatus }
-					title={ ( NAV.find( ( n ) => n.key === activeView ) || {} ).label }
+					title={ ( navList.find( ( n ) => n.key === activeView ) || {} ).label }
 					navigate={ navigate }
 					businessType={ store.data && store.data.businessType }
 				/>

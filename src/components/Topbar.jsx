@@ -7,8 +7,10 @@ import AddIcon from '@mui/icons-material/Add';
 import EventSeatIcon from '@mui/icons-material/EventSeat';
 import RestaurantMenuIcon from '@mui/icons-material/RestaurantMenu';
 import CelebrationIcon from '@mui/icons-material/Celebration';
+import TranslateIcon from '@mui/icons-material/Translate';
 import { tokens } from '../theme';
 import NotificationCenter from './NotificationCenter';
+import { useI18n } from '../lib/i18n';
 
 const STATES = {
 	idle: { icon: <CloudDoneIcon sx={ { fontSize: 15 } } />, text: 'Auto-saved', fg: tokens.ink2, bg: tokens.soft },
@@ -20,12 +22,17 @@ const STATES = {
 export default function Topbar( { saveStatus, title, navigate, businessType } ) {
 	const state = STATES[ saveStatus ] || STATES.idle;
 	const [ anchor, setAnchor ] = useState( null );
+	const { lang, setLang, t } = useI18n();
 
 	const quick = [
-		businessType !== 'takeaway' && { label: 'New booking', icon: <EventSeatIcon fontSize="small" />, view: 'bookings' },
-		{ label: 'New dish', icon: <RestaurantMenuIcon fontSize="small" />, view: 'builder' },
-		{ label: 'New event', icon: <CelebrationIcon fontSize="small" />, view: 'events' },
+		businessType !== 'takeaway' && { label: t( 'topbar.new_booking', 'New booking' ), icon: <EventSeatIcon fontSize="small" />, view: 'bookings' },
+		{ label: t( 'builder.add_item', 'New dish' ), icon: <RestaurantMenuIcon fontSize="small" />, view: 'builder' },
+		{ label: t( 'nav.events', 'New event' ), icon: <CelebrationIcon fontSize="small" />, view: 'events' },
 	].filter( Boolean );
+
+	const toggleLanguage = () => {
+		setLang( lang === 'ar' ? 'en' : 'ar' );
+	};
 
 	return (
 		<Box
@@ -44,10 +51,30 @@ export default function Topbar( { saveStatus, title, navigate, businessType } ) 
 			} }
 		>
 			<Typography sx={ { fontSize: 15, fontWeight: 650, letterSpacing: '-0.014em', color: tokens.ink } }>
-				{ title || 'Home' }
+				{ title || t( 'dash.title', 'Home' ) }
 			</Typography>
 
 			<Stack direction="row" spacing={ 1.5 } alignItems="center">
+				{ /* Language Switcher Toggle */ }
+				<Button
+					variant="outlined"
+					size="small"
+					startIcon={ <TranslateIcon sx={ { fontSize: 16 } } /> }
+					onClick={ toggleLanguage }
+					sx={ {
+						minHeight: 32,
+						px: 1.5,
+						fontSize: 12.5,
+						fontWeight: 600,
+						borderColor: tokens.border,
+						color: tokens.ink,
+						bgcolor: tokens.soft,
+						'&:hover': { bgcolor: tokens.surface, borderColor: tokens.accent },
+					} }
+				>
+					{ lang === 'ar' ? 'العربية' : 'English' }
+				</Button>
+
 				{ /* Save status pill */ }
 				<Stack
 					direction="row"
@@ -70,7 +97,7 @@ export default function Topbar( { saveStatus, title, navigate, businessType } ) 
 					onClick={ ( e ) => setAnchor( e.currentTarget ) }
 					sx={ { minHeight: 32, px: 1.5, fontSize: 13 } }
 				>
-					New
+					{ t( 'common.add', 'New' ) }
 				</Button>
 				<Menu
 					anchorEl={ anchor }

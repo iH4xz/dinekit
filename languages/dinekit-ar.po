@@ -13,6 +13,9 @@ msgstr ""
 "Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
 "X-Generator: Poedit 3.0\n"
 
+msgid "DineKit"
+msgstr "داين كيت"
+
 msgid "Menu"
 msgstr "قائمة الطعام"
 
@@ -22,14 +25,38 @@ msgstr "مُنشئ القائمة"
 msgid "Menu Items"
 msgstr "أصناف القائمة"
 
+msgid "Menu Item"
+msgstr "صنف القائمة"
+
+msgid "Add New Item"
+msgstr "إضافة صنف جديد"
+
+msgid "Edit Item"
+msgstr "تعديل الصنف"
+
+msgid "New Item"
+msgstr "صنف جديد"
+
+msgid "Search Items"
+msgstr "البحث في الأصناف"
+
 msgid "Sections"
 msgstr "الأقسام"
+
+msgid "Section"
+msgstr "قسم"
 
 msgid "Orders"
 msgstr "الطلبات"
 
+msgid "Order"
+msgstr "طلب"
+
 msgid "Bookings"
 msgstr "الحجوزات"
+
+msgid "Booking"
+msgstr "حجز"
 
 msgid "POS"
 msgstr "نقطة البيع"
@@ -117,3 +144,18 @@ msgstr "المنطقة"
 
 msgid "Region"
 msgstr "المنطقة"
+
+msgid "Price"
+msgstr "السعر"
+
+msgid "Save"
+msgstr "حفظ"
+
+msgid "Cancel"
+msgstr "إلغاء"
+
+msgid "Delete"
+msgstr "حذف"
+
+msgid "Edit"
+msgstr "تعديل"
