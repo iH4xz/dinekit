@@ -21,20 +21,19 @@ import PageHeader from './ui/PageHeader';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
 import { TilesSkeleton, ListSkeleton } from './ui/Skeletons';
+import { useI18n } from '../lib/i18n';
 
-// Getting-started steps. `view` navigates; `create` auto-creates (or finds) the
-// customer-facing page for that shortcode and opens it. `types` limits a step to
-// certain business types (absent = all). Order = the natural setup journey.
-const CHECKLIST = [
-	{ key: 'menu', label: 'Build your menu', hint: 'Add your dishes, prices & allergens', view: 'builder' },
-	{ key: 'hours', label: 'Set your opening hours', hint: 'So guests know when you’re open', view: 'hours' },
-	{ key: 'page', label: 'Publish your menu page', hint: 'A live page guests can view', create: 'menu', needs: 'menu', blocked: 'Add a dish first' },
-	{ key: 'ordering', label: 'Turn on online ordering', hint: 'Accept collection & delivery orders', view: 'orders', types: [ 'takeaway', 'both' ] },
-	{ key: 'stripe', label: 'Connect Stripe for payments', hint: 'Take card payments securely', view: 'integrations', types: [ 'takeaway', 'both' ] },
-	{ key: 'orderpage', label: 'Publish your ordering page', hint: 'Where customers place orders', create: 'order', types: [ 'takeaway', 'both' ], needs: 'menu', blocked: 'Add a dish first' },
-	{ key: 'floor', label: 'Lay out your floor plan', hint: 'Add your tables & areas', view: 'floor', types: [ 'dinein', 'both' ] },
-	{ key: 'bookpage', label: 'Publish your booking page', hint: 'Let guests reserve online', create: 'booking', types: [ 'dinein', 'both' ], needs: 'floor', blocked: 'Add a table first' },
-	{ key: 'booking', label: 'Take your first booking', hint: 'You’re ready for guests', view: 'bookings', types: [ 'dinein', 'both' ], needs: 'bookpage', blocked: 'Publish your booking page first' },
+// Getting-started steps localized in Arabic & English.
+const CHECKLIST_DEF = [
+	{ key: 'menu', labelKey: 'dash.check_menu', defaultLabel: 'Build your menu', hintKey: 'dash.hint_menu', defaultHint: 'Add your dishes, prices & allergens', view: 'builder' },
+	{ key: 'hours', labelKey: 'dash.check_hours', defaultLabel: 'Set your opening hours', hintKey: 'dash.hint_hours', defaultHint: 'So guests know when you’re open', view: 'hours' },
+	{ key: 'page', labelKey: 'dash.check_page', defaultLabel: 'Publish your menu page', hintKey: 'dash.hint_page', defaultHint: 'A live page guests can view', create: 'menu', needs: 'menu', blocked: 'Add a dish first' },
+	{ key: 'ordering', labelKey: 'dash.check_ordering', defaultLabel: 'Turn on online ordering', hintKey: 'dash.hint_ordering', defaultHint: 'Accept collection & delivery orders', view: 'orders', types: [ 'takeaway', 'both' ] },
+	{ key: 'stripe', labelKey: 'dash.check_stripe', defaultLabel: 'Connect Stripe for payments', hintKey: 'dash.hint_stripe', defaultHint: 'Take card payments securely', view: 'integrations', types: [ 'takeaway', 'both' ] },
+	{ key: 'orderpage', labelKey: 'dash.check_orderpage', defaultLabel: 'Publish your ordering page', hintKey: 'dash.hint_orderpage', defaultHint: 'Where customers place orders', create: 'order', types: [ 'takeaway', 'both' ], needs: 'menu', blocked: 'Add a dish first' },
+	{ key: 'floor', labelKey: 'dash.check_floor', defaultLabel: 'Lay out your floor plan', hintKey: 'dash.hint_floor', defaultHint: 'Add your tables & areas', view: 'floor', types: [ 'dinein', 'both' ] },
+	{ key: 'bookpage', labelKey: 'dash.check_bookpage', defaultLabel: 'Publish your booking page', hintKey: 'dash.hint_bookpage', defaultHint: 'Let guests reserve online', create: 'booking', types: [ 'dinein', 'both' ], needs: 'floor', blocked: 'Add a table first' },
+	{ key: 'booking', labelKey: 'dash.check_booking', defaultLabel: 'Take your first booking', hintKey: 'dash.hint_booking', defaultHint: 'You’re ready for guests', view: 'bookings', types: [ 'dinein', 'both' ], needs: 'bookpage', blocked: 'Publish your booking page first' },
 ];
 
 export default function DashboardView( { navigate } ) {
