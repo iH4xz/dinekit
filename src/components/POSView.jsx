@@ -55,14 +55,10 @@ const durMins = ( m ) => {
 	return mm ? `${ h }h ${ String( mm ).padStart( 2, '0' ) }m` : `${ h }h`;
 };
 
-// "26 Jul, 18:04" for the table's order history.
-const fmtDateTime = ( iso ) => {
-	if ( ! iso ) {
-		return '';
-	}
-	const d = new Date( String( iso ).replace( ' ', 'T' ) );
-	return Number.isNaN( d.getTime() ) ? '' : d.toLocaleString( [], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' } );
-};
+import { formatDateTime } from '../lib/l10n';
+
+// Localized timestamp with Gulf Arabic AM/PM (ص / م) support.
+const fmtDateTime = ( iso ) => formatDateTime( iso, 'ar' );
 
 // Occupied-table colour escalates with how long the tab's been open vs the turn
 // time: green (fresh) → amber (≥60%) → red (over — needs turning).

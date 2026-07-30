@@ -258,7 +258,15 @@ function format_period( $p ) {
 	if ( ! $o || ! $c ) {
 		return '';
 	}
-	return $o->format( $fmt ) . ' – ' . $c->format( $fmt );
+	$open_str  = wp_date( $fmt, $o->getTimestamp() );
+	$close_str = wp_date( $fmt, $c->getTimestamp() );
+
+	if ( is_rtl() || get_locale() === 'ar' || str_starts_with( get_locale(), 'ar_' ) ) {
+		$open_str  = str_replace( array( 'AM', 'PM', 'am', 'pm' ), array( 'ص', 'م', 'ص', 'م' ), $open_str );
+		$close_str = str_replace( array( 'AM', 'PM', 'am', 'pm' ), array( 'ص', 'م', 'ص', 'م' ), $close_str );
+	}
+
+	return $open_str . ' – ' . $close_str;
 }
 
 /**
