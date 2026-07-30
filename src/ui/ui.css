@@ -6,7 +6,7 @@
  */
 
 #dinekit-root {
-	font-family: "InterVariable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+	font-family: var(--dinekit-admin-font, 'Tajwal', 'Almarai', 'Cairo', 'Inter', system-ui, sans-serif);
 	color: #18181b;
 }
 

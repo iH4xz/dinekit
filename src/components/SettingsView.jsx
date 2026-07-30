@@ -8,6 +8,7 @@ import {
 	ToggleButton,
 	MenuItem,
 	CircularProgress,
+	Button,
 } from '../ui';
 import { tokens } from '../theme';
 import { api } from '../api/client';
@@ -18,6 +19,19 @@ import Card from './ui/Card';
 import { COUNTRIES, postcodeLabel, regionLabel } from '../lib/l10n';
 
 const PRESETS = [ '#b91c1c', '#0ea5e9', '#16a34a', '#7c3aed', '#d97706', '#0f172a', '#db2777' ];
+const GCC_CURRENCIES = [
+	{ symbol: 'ر.س', label: 'ر.س (SAR - Saudi Arabia)' },
+	{ symbol: 'د.إ', label: 'د.إ (AED - UAE)' },
+	{ symbol: 'د.ك', label: 'د.ك (KWD - Kuwait)' },
+	{ symbol: 'ر.ق', label: 'ر.ق (QAR - Qatar)' },
+	{ symbol: 'د.ب', label: 'د.ب (BHD - Bahrain)' },
+	{ symbol: 'ر.ع.', label: 'ر.ع. (OMR - Oman)' },
+	{ symbol: 'SAR', label: 'SAR' },
+	{ symbol: 'AED', label: 'AED' },
+	{ symbol: '£', label: 'GBP £' },
+	{ symbol: '$', label: 'USD $' },
+	{ symbol: '€', label: 'EUR €' },
+];
 
 // Brand + currency settings — applied globally to every menu on the frontend.
 export default function SettingsView() {
@@ -107,14 +121,30 @@ export default function SettingsView() {
 				</Card>
 
 				<Card>
-					<Typography sx={ { fontWeight: 650, fontSize: 15, mb: 2 } }>Currency</Typography>
+					<Typography sx={ { fontWeight: 650, fontSize: 15, mb: 1 } }>Currency</Typography>
+					<Typography sx={ { fontSize: 12.5, color: tokens.muted, mb: 1.5 } }>
+						Select a GCC or international currency preset, or type a custom symbol.
+					</Typography>
+					<Stack direction="row" spacing={ 1 } flexWrap="wrap" useFlexGap sx={ { mb: 2, rowGap: 1 } }>
+						{ GCC_CURRENCIES.map( ( c ) => (
+							<Button
+								key={ c.symbol }
+								size="small"
+								variant={ settings.currency === c.symbol ? 'contained' : 'outlined' }
+								onClick={ () => update( { currency: c.symbol } ) }
+								sx={ { textTransform: 'none', borderRadius: 1.5, px: 1.25, py: 0.5, fontSize: 12.5 } }
+							>
+								{ c.label }
+							</Button>
+						) ) }
+					</Stack>
 					<Stack direction="row" spacing={ 2 } alignItems="flex-end" flexWrap="wrap">
 						<Box>
 							<Typography sx={ { fontSize: 12, color: tokens.muted, mb: 0.5 } }>Symbol</Typography>
 							<TextField
 								value={ settings.currency }
 								onChange={ ( e ) => update( { currency: e.target.value } ) }
-								sx={ { width: 90 } }
+								sx={ { width: 100 } }
 								inputProps={ { maxLength: 8 } }
 							/>
 						</Box>
@@ -138,8 +168,8 @@ export default function SettingsView() {
 					<Typography sx={ { fontSize: 12.5, color: tokens.muted, mt: 1.5 } }>
 						Prices will show as{ ' ' }
 						{ settings.currencyPosition === 'after'
-							? `9.50${ settings.currency }`
-							: `${ settings.currency }9.50` }
+							? `9.50 ${ settings.currency }`
+							: `${ settings.currency } 9.50` }
 					</Typography>
 				</Card>
 

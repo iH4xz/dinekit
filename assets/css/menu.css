@@ -10,11 +10,13 @@
 	--dinekit-bg: transparent;
 	--dinekit-radius: 12px;
 	--dinekit-scale: 1;
+	--dinekit-font: 'Tajwal', system-ui, -apple-system, sans-serif;
 
 	max-width: 1100px;
 	margin: 0 auto;
 	color: var(--dinekit-ink);
 	background: var(--dinekit-bg);
+	font-family: var(--dinekit-font);
 	line-height: 1.5;
 	/* All menu font-sizes are in em, so this one control scales the whole menu's
 	   text. --dinekit-scale is set from the venue's "Text size" choice. */
@@ -965,3 +967,46 @@
 	padding: 1px 6px;
 	margin-left: 6px;
 }
+
+/* ---- RTL Support ---- */
+[dir="rtl"] .dinekit-menu,
+.dinekit-menu[dir="rtl"],
+:host-context([dir="rtl"]) .dinekit-menu {
+	direction: rtl;
+	text-align: right;
+}
+
+[dir="rtl"] .dinekit-price + .dinekit-price,
+.dinekit-menu[dir="rtl"] .dinekit-price + .dinekit-price {
+	margin-left: 0;
+	margin-right: 0.6rem;
+}
+
+[dir="rtl"] .dinekit-badge,
+.dinekit-menu[dir="rtl"] .dinekit-badge {
+	margin-left: 0;
+	margin-right: 0.4rem;
+}
+
+[dir="rtl"] .dinekit-allergens,
+.dinekit-menu[dir="rtl"] .dinekit-allergens {
+	margin-left: 0;
+	margin-right: auto;
+}
+
+[dir="rtl"] .dinekit-item__unavailable,
+.dinekit-menu[dir="rtl"] .dinekit-item__unavailable {
+	margin-left: 0;
+	margin-right: 6px;
+}
+
+[dir="rtl"] .dinekit-hours__table th,
+.dinekit-menu[dir="rtl"] .dinekit-hours__table th {
+	text-align: right;
+}
+
+[dir="rtl"] .dinekit-hours__table td,
+.dinekit-menu[dir="rtl"] .dinekit-hours__table td {
+	text-align: left;
+}
+

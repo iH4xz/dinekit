@@ -38,6 +38,8 @@ function register() {
 	wp_register_style( 'dinekit-menu', DINEKIT_URL . 'assets/css/menu.css', array(), DINEKIT_VERSION );
 	wp_register_script( 'dinekit-filter', DINEKIT_URL . 'assets/js/dinekit-filter.js', array(), DINEKIT_VERSION, true );
 
+	enqueue_font();
+
 	wp_register_script(
 		'dinekit-menu-editor',
 		DINEKIT_URL . 'assets/block/menu-editor.js',
@@ -65,6 +67,23 @@ function register() {
 			DINEKIT_DIR . 'blocks/hours',
 			array( 'render_callback' => __NAMESPACE__ . '\\render_hours_block' )
 		);
+	}
+}
+
+/**
+ * Enqueue configured font family Google font stylesheet.
+ *
+ * @return void
+ */
+function enqueue_font() {
+	require_once DINEKIT_DIR . 'includes/settings.php';
+	$s         = \DineKit\Settings\get();
+	$fonts     = \DineKit\Settings\fonts();
+	$font_key  = isset( $s['font_family'] ) && isset( $fonts[ $s['font_family'] ] ) ? $s['font_family'] : 'tajwal';
+	$font_data = $fonts[ $font_key ];
+
+	if ( ! empty( $font_data['url'] ) ) {
+		wp_enqueue_style( 'dinekit-font-' . $font_key, $font_data['url'], array(), null );
 	}
 }
 

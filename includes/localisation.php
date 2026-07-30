@@ -27,6 +27,12 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 function countries() {
 	$list = array(
+		'SA' => 'Saudi Arabia',
+		'AE' => 'United Arab Emirates',
+		'KW' => 'Kuwait',
+		'QA' => 'Qatar',
+		'BH' => 'Bahrain',
+		'OM' => 'Oman',
 		'GB' => 'United Kingdom',
 		'US' => 'United States',
 		'IE' => 'Ireland',
@@ -64,7 +70,6 @@ function countries() {
 		'CH' => 'Switzerland',
 		'IN' => 'India',
 		'SG' => 'Singapore',
-		'AE' => 'United Arab Emirates',
 		'ZA' => 'South Africa',
 		'MX' => 'Mexico',
 		'BR' => 'Brazil',
@@ -121,6 +126,12 @@ function region_label( $country ) {
 function currency_code( $country, $symbol = '' ) {
 	$eurozone   = array( 'IE', 'FR', 'DE', 'ES', 'IT', 'NL', 'BE', 'PT', 'AT', 'FI', 'GR', 'LU', 'SK', 'SI', 'LT', 'LV', 'EE', 'CY', 'MT', 'HR' );
 	$by_country = array(
+		'SA' => 'SAR',
+		'AE' => 'AED',
+		'KW' => 'KWD',
+		'QA' => 'QAR',
+		'BH' => 'BHD',
+		'OM' => 'OMR',
 		'GB' => 'GBP',
 		'US' => 'USD',
 		'CA' => 'CAD',
@@ -138,7 +149,6 @@ function currency_code( $country, $symbol = '' ) {
 		'IS' => 'ISK',
 		'IN' => 'INR',
 		'SG' => 'SGD',
-		'AE' => 'AED',
 		'ZA' => 'ZAR',
 		'MX' => 'MXN',
 		'BR' => 'BRL',
@@ -154,11 +164,24 @@ function currency_code( $country, $symbol = '' ) {
 
 	// No country set — infer from the symbol so existing installs stay correct.
 	$by_symbol = array(
-		'£' => 'GBP',
-		'$' => 'USD',
-		'€' => 'EUR',
-		'¥' => 'JPY',
-		'₹' => 'INR',
+		'ر.س'  => 'SAR',
+		'SAR'  => 'SAR',
+		'SR'   => 'SAR',
+		'د.إ'  => 'AED',
+		'AED'  => 'AED',
+		'د.ك'  => 'KWD',
+		'KWD'  => 'KWD',
+		'ر.ق'  => 'QAR',
+		'QAR'  => 'QAR',
+		'د.ب'  => 'BHD',
+		'BHD'  => 'BHD',
+		'ر.ع.' => 'OMR',
+		'OMR'  => 'OMR',
+		'£'    => 'GBP',
+		'$'    => 'USD',
+		'€'    => 'EUR',
+		'¥'    => 'JPY',
+		'₹'    => 'INR',
 	);
 	return isset( $by_symbol[ trim( (string) $symbol ) ] ) ? $by_symbol[ trim( (string) $symbol ) ] : '';
 }

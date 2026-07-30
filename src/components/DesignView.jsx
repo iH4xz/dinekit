@@ -43,6 +43,17 @@ const TEMPLATES = [
 	{ value: 'fresh', label: 'Fresh', desc: 'Bright & friendly café' },
 	{ value: 'mono', label: 'Mono', desc: 'Minimalist monochrome' },
 ];
+
+const ARABIC_FONTS = [
+	{ value: 'tajwal', label: 'Tajwal (تجوال - Saudi Modern)', font: "'Tajwal', sans-serif", url: 'https://fonts.googleapis.com/css2?family=Tajwal:wght@300;400;500;700&display=swap' },
+	{ value: 'almarai', label: 'Almarai (المرعي - Saudi Corporate)', font: "'Almarai', sans-serif", url: 'https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap' },
+	{ value: 'cairo', label: 'Cairo (القاهرة - Modern UI)', font: "'Cairo', sans-serif", url: 'https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap' },
+	{ value: 'alexandria', label: 'Alexandria (الإسكندرية - Modern Sans)', font: "'Alexandria', sans-serif", url: 'https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;700&display=swap' },
+	{ value: 'readex', label: 'Readex Pro (ريدكس برو - Digital)', font: "'Readex Pro', sans-serif", url: 'https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;700&display=swap' },
+	{ value: 'amiri', label: 'Amiri (أميري - Calligraphy)', font: "'Amiri', serif", url: 'https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&display=swap' },
+	{ value: 'default', label: 'Default System', font: 'system-ui, sans-serif', url: '' },
+];
+
 const TEMPLATE_PALETTE = {
 	maison: { accent: '#7c2d3a', menu_ink: '#2b2622', menu_muted: '#8a7f73', menu_line: '#e4dccd', menu_bg: '#faf7f1' },
 	counter: { accent: '#4f46e5', menu_ink: '#101319', menu_muted: '#667085', menu_line: '#edeff3', menu_bg: '' },
@@ -74,6 +85,7 @@ export default function DesignView() {
 		api.getSettings().then( ( s ) =>
 			setDesign( {
 				template: s.template || 'maison',
+				font_family: s.font_family || 'tajwal',
 				// Empty = "use the template's colour" (an override only when set).
 				accent: s.accent || '',
 				menu_ink: s.menu_ink || '',
@@ -81,7 +93,7 @@ export default function DesignView() {
 				menu_line: s.menu_line || '',
 				menu_bg: s.menu_bg || '',
 				menu_radius: s.menu_radius != null ? s.menu_radius : 12,
-					menu_scale: s.menu_scale != null ? Number( s.menu_scale ) : 1,
+				menu_scale: s.menu_scale != null ? Number( s.menu_scale ) : 1,
 			} )
 		);
 	}, [] );
@@ -155,13 +167,16 @@ export default function DesignView() {
 		return `[${ parts.join( ' ' ) }]`;
 	}, [ layout, columns, images, allergens, dietary, matrix, filter, filterStyle, allergensAs ] );
 
+	// Selected font configuration
+	const currentFont = ARABIC_FONTS.find( ( f ) => f.value === ( design ? design.font_family : 'tajwal' ) ) || ARABIC_FONTS[ 0 ];
+
 	// Live colour overrides so the preview reflects unsaved picks instantly. Only
 	// emit the ones the venue actually set, so the template's palette shows through.
 	const varStyle = ( () => {
 		if ( ! design ) {
 			return '';
 		}
-		let v = `--dinekit-radius:${ design.menu_radius }px;--dinekit-scale:${ design.menu_scale != null ? design.menu_scale : 1 };`;
+		let v = `--dinekit-radius:${ design.menu_radius }px;--dinekit-scale:${ design.menu_scale != null ? design.menu_scale : 1 };--dinekit-font:${ currentFont.font };`;
 		[ [ 'accent', 'accent' ], [ 'menu_ink', 'ink' ], [ 'menu_muted', 'muted' ], [ 'menu_line', 'line' ], [ 'menu_bg', 'bg' ] ].forEach( ( [ k, t ] ) => {
 			if ( design[ k ] ) {
 				v += `--dinekit-${ t }:${ design[ k ] };`;
@@ -169,8 +184,9 @@ export default function DesignView() {
 		} );
 		return `.dinekit-menu{${ v }}`;
 	} )();
+	const fontTag = currentFont.url ? `<link rel="stylesheet" href="${ currentFont.url }">` : '';
 	const srcDoc = preview
-		? `<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="${ preview.cssUrl }"><style>body{margin:0;padding:20px;background:#fff;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}${ varStyle }</style></head><body>${ preview.html }<script src="${ preview.jsUrl }"></script></body></html>`
+		? `<!doctype html><html><head><meta charset="utf-8">${ fontTag }<link rel="stylesheet" href="${ preview.cssUrl }"><style>body{margin:0;padding:20px;background:#fff;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}${ varStyle }</style></head><body>${ preview.html }<script src="${ preview.jsUrl }"></script></body></html>`
 		: '';
 
 	const copyShortcode = () => {
@@ -272,6 +288,29 @@ export default function DesignView() {
 					</ToggleButtonGroup>
 					<Typography sx={ { fontSize: 12, color: tokens.muted2, mt: 1.25 } }>
 						Sets the base look. The colours below are optional tweaks on top — leave them and the template’s own palette is used.
+					</Typography>
+				</Card>
+			) }
+
+			{ /* Typography & Arabic Fonts */ }
+			{ design && (
+				<Card sx={ { p: 2, mb: 2.5 } }>
+					<Typography sx={ { ...labelSx, mb: 1.5 } }>Typography & Fonts (Arabic / English)</Typography>
+					<ToggleButtonGroup
+						exclusive
+						size="small"
+						value={ design.font_family || 'tajwal' }
+						onChange={ ( e, v ) => v && patchDesign( { font_family: v } ) }
+						sx={ { flexWrap: 'wrap', rowGap: 1 } }
+					>
+						{ ARABIC_FONTS.map( ( f ) => (
+							<ToggleButton key={ f.value } value={ f.value } sx={ { textTransform: 'none', px: 1.75, py: 0.75 } }>
+								{ f.label }
+							</ToggleButton>
+						) ) }
+					</ToggleButtonGroup>
+					<Typography sx={ { fontSize: 12, color: tokens.muted2, mt: 1.25 } }>
+						Popular Arabic typography used across Saudi Arabia & Gulf states (Tajwal, Almarai, Cairo, Alexandria, Readex Pro, Amiri). Automatically loaded via Google Fonts.
 					</Typography>
 				</Card>
 			) }

@@ -1,0 +1,119 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: DineKit 1.2.14\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-07-30 21:30+0300\n"
+"PO-Revision-Date: 2026-07-30 21:30+0300\n"
+"Last-Translator: Mohammed Jadaan <ih4xz@outlook.sa>\n"
+"Language-Team: Arabic <ar@li.org>\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 && n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+"X-Generator: Poedit 3.0\n"
+
+msgid "Menu"
+msgstr "قائمة الطعام"
+
+msgid "Menu Builder"
+msgstr "مُنشئ القائمة"
+
+msgid "Menu Items"
+msgstr "أصناف القائمة"
+
+msgid "Sections"
+msgstr "الأقسام"
+
+msgid "Orders"
+msgstr "الطلبات"
+
+msgid "Bookings"
+msgstr "الحجوزات"
+
+msgid "POS"
+msgstr "نقطة البيع"
+
+msgid "Kitchen"
+msgstr "المطبخ"
+
+msgid "Settings"
+msgstr "الإعدادات"
+
+msgid "Reports"
+msgstr "التقارير"
+
+msgid "Reviews"
+msgstr "التقييمات"
+
+msgid "QR Cards"
+msgstr "بطاقات QR"
+
+msgid "Opening Hours"
+msgstr "أوقات العمل"
+
+msgid "Allergens"
+msgstr "مسببات الحساسية"
+
+msgid "Dietary"
+msgstr "الأنظمة الغذائية"
+
+msgid "Show only"
+msgstr "عرض فقط"
+
+msgid "Avoid"
+msgstr "تجنب"
+
+msgid "All dishes"
+msgstr "جميع الأصناف"
+
+msgid "Nothing"
+msgstr "لا شيء"
+
+msgid "Clear"
+msgstr "مسح"
+
+msgid "No dishes match your filters."
+msgstr "لا توجد أصناف تطابق تصفيتك."
+
+msgid "Allergen key"
+msgstr "دليل مسببات الحساسية"
+
+msgid "Full allergen matrix (printable)"
+msgstr "جدول مسببات الحساسية الكامل (قابل للطباعة)"
+
+msgid "Dish"
+msgstr "الصنف"
+
+msgid "Coming soon"
+msgstr "قريباً"
+
+msgid "No menu items to show yet."
+msgstr "لا توجد أصناف في القائمة لعرضها حالياً."
+
+msgid "Currently unavailable"
+msgstr "غير متوفر حالياً"
+
+msgid "%d kcal"
+msgstr "%d سعرة حرارية"
+
+msgid "ZIP code"
+msgstr "الرمز البريدي"
+
+msgid "Postcode"
+msgstr "الرمز البريدي"
+
+msgid "Postal code"
+msgstr "الرمز البريدي"
+
+msgid "State"
+msgstr "المنطقة / الولاية"
+
+msgid "Province"
+msgstr "المحافظة"
+
+msgid "County"
+msgstr "المنطقة"
+
+msgid "Region"
+msgstr "المنطقة"

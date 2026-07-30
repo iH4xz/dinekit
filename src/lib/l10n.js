@@ -3,6 +3,8 @@
 // its sub-national region — so the Settings form reads naturally worldwide.
 
 export const COUNTRIES = [
+	[ 'SA', 'Saudi Arabia' ], [ 'AE', 'United Arab Emirates' ], [ 'KW', 'Kuwait' ],
+	[ 'QA', 'Qatar' ], [ 'BH', 'Bahrain' ], [ 'OM', 'Oman' ],
 	[ 'GB', 'United Kingdom' ], [ 'US', 'United States' ], [ 'IE', 'Ireland' ],
 	[ 'CA', 'Canada' ], [ 'AU', 'Australia' ], [ 'NZ', 'New Zealand' ],
 	[ 'AT', 'Austria' ], [ 'BE', 'Belgium' ], [ 'BG', 'Bulgaria' ], [ 'HR', 'Croatia' ],
@@ -12,7 +14,7 @@ export const COUNTRIES = [
 	[ 'LT', 'Lithuania' ], [ 'LU', 'Luxembourg' ], [ 'MT', 'Malta' ], [ 'NL', 'Netherlands' ],
 	[ 'NO', 'Norway' ], [ 'PL', 'Poland' ], [ 'PT', 'Portugal' ], [ 'RO', 'Romania' ],
 	[ 'SK', 'Slovakia' ], [ 'SI', 'Slovenia' ], [ 'ES', 'Spain' ], [ 'SE', 'Sweden' ],
-	[ 'CH', 'Switzerland' ], [ 'IN', 'India' ], [ 'SG', 'Singapore' ], [ 'AE', 'United Arab Emirates' ],
+	[ 'CH', 'Switzerland' ], [ 'IN', 'India' ], [ 'SG', 'Singapore' ],
 	[ 'ZA', 'South Africa' ], [ 'MX', 'Mexico' ], [ 'BR', 'Brazil' ], [ 'JP', 'Japan' ],
 ];
 

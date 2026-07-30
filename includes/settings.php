@@ -23,12 +23,13 @@ const OPTION = 'dinekit_settings';
 function defaults() {
 	return array(
 		'accent'           => '',       // '' = use the template's accent; a hex overrides it.
-		'currency'         => '£',
-		'currencyPosition' => 'before', // before | after.
+		'currency'         => 'ر.س',
+		'currencyPosition' => 'after', // before | after.
+		'font_family'      => 'tajwal', // default | tajwal | almarai | cairo | alexandria | readex | amiri
 		'businessType'     => 'both',   // dinein | takeaway | both — gates features.
 		// Localisation + the restaurant's own address (feeds LocalBusiness schema
 		// and drives region-aware address labels). Country is ISO 3166-1 alpha-2.
-		'country'          => '',
+		'country'          => 'SA',
 		'addr_street'      => '',
 		'addr_city'        => '',
 		'addr_postcode'    => '',
@@ -55,6 +56,51 @@ function templates() {
 }
 
 /**
+ * Available Arabic & international fonts.
+ *
+ * @return array<string,array{name:string,stack:string,url:string}>
+ */
+function fonts() {
+	return array(
+		'tajwal'     => array(
+			'name'  => 'Tajwal (تجوال - Saudi Modern)',
+			'stack' => "'Tajwal', system-ui, -apple-system, sans-serif",
+			'url'   => 'https://fonts.googleapis.com/css2?family=Tajwal:wght@300;400;500;700&display=swap',
+		),
+		'almarai'    => array(
+			'name'  => 'Almarai (المرعي - Saudi Corporate)',
+			'stack' => "'Almarai', system-ui, -apple-system, sans-serif",
+			'url'   => 'https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&display=swap',
+		),
+		'cairo'      => array(
+			'name'  => 'Cairo (القاهرة - Modern UI)',
+			'stack' => "'Cairo', system-ui, -apple-system, sans-serif",
+			'url'   => 'https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&display=swap',
+		),
+		'alexandria' => array(
+			'name'  => 'Alexandria (الإسكندرية - Modern Sans)',
+			'stack' => "'Alexandria', system-ui, -apple-system, sans-serif",
+			'url'   => 'https://fonts.googleapis.com/css2?family=Alexandria:wght@300;400;500;700&display=swap',
+		),
+		'readex'     => array(
+			'name'  => 'Readex Pro (ريدكس برو - Digital)',
+			'stack' => "'Readex Pro', system-ui, -apple-system, sans-serif",
+			'url'   => 'https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;700&display=swap',
+		),
+		'amiri'      => array(
+			'name'  => 'Amiri (أميري - Calligraphy)',
+			'stack' => "'Amiri', serif",
+			'url'   => 'https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&display=swap',
+		),
+		'default'    => array(
+			'name'  => 'Default System Font',
+			'stack' => 'system-ui, -apple-system, sans-serif',
+			'url'   => '',
+		),
+	);
+}
+
+/**
  * Front-end menu CSS custom-property declarations, from the saved colours.
  * Filterable so developers can override any token: add_filter( 'dinekit_menu_style_vars', … ).
  *
@@ -62,13 +108,17 @@ function templates() {
  * @return string style attribute value (no quotes), may be ''.
  */
 function menu_style_vars( $accent_override = '' ) {
-	$s      = get();
-	$accent = ( '' !== $accent_override && preg_match( '/^#[0-9a-fA-F]{6}$/', $accent_override ) ) ? $accent_override : (string) $s['accent'];
+	$s          = get();
+	$accent     = ( '' !== $accent_override && preg_match( '/^#[0-9a-fA-F]{6}$/', $accent_override ) ) ? $accent_override : (string) $s['accent'];
+	$font_key   = isset( $s['font_family'] ) && isset( fonts()[ $s['font_family'] ] ) ? $s['font_family'] : 'tajwal';
+	$font_data  = fonts()[ $font_key ];
+
 	// Radius is structural (always applies); colours are emitted only when the
 	// venue overrides them, so the chosen template's palette shows through.
 	$vars     = array(
 		'--dinekit-radius' => (int) $s['menu_radius'] . 'px',
 		'--dinekit-scale'  => rtrim( rtrim( number_format( (float) $s['menu_scale'], 3, '.', '' ), '0' ), '.' ),
+		'--dinekit-font'   => $font_data['stack'],
 	);
 	$optional = array(
 		'--dinekit-accent' => $accent,
@@ -125,6 +175,9 @@ function save( $input ) {
 	}
 	if ( isset( $input['template'] ) && in_array( (string) $input['template'], templates(), true ) ) {
 		$clean['template'] = (string) $input['template'];
+	}
+	if ( isset( $input['font_family'] ) && array_key_exists( (string) $input['font_family'], fonts() ) ) {
+		$clean['font_family'] = (string) $input['font_family'];
 	}
 	if ( isset( $input['currency'] ) ) {
 		$clean['currency'] = substr( sanitize_text_field( (string) $input['currency'] ), 0, 8 );
