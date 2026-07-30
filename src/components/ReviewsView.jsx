@@ -16,6 +16,7 @@ import { api } from '../api/client';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+import { useI18n } from '../lib/i18n';
 
 // Reviews & retention settings. The compliant flow (ask everyone the same way,
 // same public link for all, private feedback in parallel) is fixed by design —

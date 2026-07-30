@@ -27,6 +27,7 @@ import EmptyState from './ui/EmptyState';
 import Card from './ui/Card';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { ListSkeleton } from './ui/Skeletons';
+import { useI18n } from '../lib/i18n';
 import PageTour from './PageTour';
 import StaffRota from './StaffRota';
 import StaffHoliday from './StaffHoliday';

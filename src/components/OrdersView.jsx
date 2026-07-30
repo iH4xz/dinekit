@@ -47,6 +47,7 @@ import EmptyState from './ui/EmptyState';
 import Card from './ui/Card';
 import { ListSkeleton } from './ui/Skeletons';
 import PageTour from './PageTour';
+import { useI18n } from '../lib/i18n';
 
 // Prominent "how customers order online" panel — the link + QR to share, or a
 // one-click create if the ordering page doesn't exist yet. Makes the online

@@ -16,6 +16,7 @@ import EmptyState from './ui/EmptyState';
 import StatTile from './ui/StatTile';
 import Card from './ui/Card';
 import { TilesSkeleton, ChartSkeleton } from './ui/Skeletons';
+import { useI18n } from '../lib/i18n';
 
 const RANGES = [
 	{ key: '7', label: '7 days', days: 6 },

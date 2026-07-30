@@ -44,6 +44,7 @@ import StarBorderIcon from '@mui/icons-material/StarBorder';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { tokens } from '../theme';
 import { api } from '../api/client';
+import { useI18n } from '../lib/i18n';
 import { STATUSES, statusMeta, isoDate, addDays, prettyDate } from '../lib/bookings';
 import { printDoc, esc } from '../lib/print';
 import Page from './ui/Page';

@@ -16,6 +16,7 @@ import { api } from '../api/client';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+import { useI18n } from '../lib/i18n';
 
 const UTM = 'utm_source=qr';
 const withUtm = ( url ) => ( ! url ? url : url + ( url.includes( '?' ) ? '&' : '?' ) + UTM );

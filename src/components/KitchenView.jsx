@@ -10,13 +10,14 @@ import ShoppingBagIcon from '@mui/icons-material/ShoppingBag';
 import { tokens } from '../theme';
 import { api } from '../api/client';
 import { useSyncRevision } from '../lib/useSync';
+import { useI18n } from '../lib/i18n';
 
 // The kitchen flow, left → right. Tapping a card's button advances it; from
 // "ready" it leaves the board (completed).
-const COLUMNS = [
-	{ key: 'new', label: 'New', next: 'preparing', action: 'Start', fg: '#b45309', bg: '#fffbeb', bar: tokens.amber || '#f59e0b' },
-	{ key: 'preparing', label: 'Preparing', next: 'ready', action: 'Ready', fg: tokens.accentDark || '#4f46e5', bg: tokens.accentSoft || '#eef2ff', bar: tokens.accent },
-	{ key: 'ready', label: 'Ready', next: 'done', action: 'Done', fg: '#166534', bg: '#f0fdf4', bar: tokens.green || '#16a34a' },
+const COLUMNS_DEF = [
+	{ key: 'new', labelKey: 'kds.new', fallbackLabel: 'New', next: 'preparing', action: 'Start', fg: '#b45309', bg: '#fffbeb', bar: tokens.amber || '#f59e0b' },
+	{ key: 'preparing', labelKey: 'kds.preparing', fallbackLabel: 'Preparing', next: 'ready', action: 'Ready', fg: tokens.accentDark || '#4f46e5', bg: tokens.accentSoft || '#eef2ff', bar: tokens.accent },
+	{ key: 'ready', labelKey: 'kds.ready', fallbackLabel: 'Ready', next: 'done', action: 'Done', fg: '#166534', bg: '#f0fdf4', bar: tokens.green || '#16a34a' },
 ];
 
 const POLL_MS = 60000; // safety net only — live updates come from the sync heartbeat.

@@ -26,6 +26,7 @@ import ModifierEditor from './ModifierEditor';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { openMediaPicker } from '../lib/media';
 import { useToast } from './Toast';
+import { useI18n } from '../lib/i18n';
 
 const labelSx = {
 	textTransform: 'uppercase',
@@ -66,6 +67,7 @@ function Section( { title, subtitle, defaultOpen = false, children } ) {
 }
 
 export default function ItemEditor( { item, store, onArchive, onClose } ) {
+	const { t } = useI18n();
 	const { data } = store;
 	const [ form, setForm ] = useState( item );
 	const debounceRef = useRef( null );

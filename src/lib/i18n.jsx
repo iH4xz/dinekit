@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
-// Central i18n Translation Dictionary for DineKit
+// Comprehensive i18n Dictionary for DineKit Admin SPA & Components
 const translations = {
 	en: {
 		// Navigation & Sidebar
@@ -31,7 +31,7 @@ const translations = {
 		'nav.expand': 'Expand menu',
 		'nav.collapse': 'Collapse menu',
 
-		// Common Buttons & Labels
+		// Common UI
 		'common.save': 'Save',
 		'common.saving': 'Saving…',
 		'common.saved': 'Saved',
@@ -62,6 +62,9 @@ const translations = {
 		'common.next': 'Next',
 		'common.confirm': 'Confirm',
 		'common.clear': 'Clear',
+		'common.yes': 'Yes',
+		'common.no': 'No',
+		'common.remove': 'Remove',
 
 		// Topbar & Header
 		'topbar.search_placeholder': 'Search dishes, orders, bookings… (⌘K)',
@@ -84,7 +87,7 @@ const translations = {
 		'dash.upcoming_bookings': 'Upcoming Bookings',
 		'dash.kitchen_status': 'Kitchen Live Status',
 
-		// Menu Builder
+		// Menu Builder & Item Editor
 		'builder.title': 'Menu Builder',
 		'builder.subtitle': 'Organise your dishes, categories, prices, and allergen details.',
 		'builder.add_item': '+ Add Dish',
@@ -93,8 +96,15 @@ const translations = {
 		'builder.archive': 'Archived Dishes',
 		'builder.allergens': 'Allergens',
 		'builder.dietary': 'Dietary Badges',
+		'item.dish_name': 'Dish name',
+		'item.description': 'Description',
+		'item.badge': 'Badge (e.g. Chef\'s Special)',
+		'item.calories': 'Calories (kcal)',
+		'item.available': 'Available to order',
+		'item.unavailable': 'Currently 86\'d / Unavailable',
+		'item.photo': 'Dish Photo',
 
-		// POS View
+		// POS View & Ordering
 		'pos.title': 'POS / Take Order',
 		'pos.subtitle': 'Fast ordering for dine-in tables, takeaway, and counter service.',
 		'pos.cart': 'Current Order',
@@ -104,6 +114,8 @@ const translations = {
 		'pos.takeaway': 'Takeaway',
 		'pos.table_select': 'Select Table',
 		'pos.guest_count': 'Guests',
+		'pos.cash': 'Cash',
+		'pos.card': 'Card / Terminal',
 
 		// Kitchen View (KDS)
 		'kds.title': 'Kitchen Display System',
@@ -114,7 +126,7 @@ const translations = {
 		'kds.mark_ready': 'Mark Ready',
 		'kds.complete': 'Complete',
 
-		// Bookings View
+		// Bookings & Floor Plan
 		'bookings.title': 'Reservations & Bookings',
 		'bookings.subtitle': 'Manage table reservations, guest lists, and seating.',
 		'bookings.new_reservation': '+ New Reservation',
@@ -123,6 +135,8 @@ const translations = {
 		'bookings.confirmed': 'Confirmed',
 		'bookings.seated': 'Seated',
 		'bookings.cancelled': 'Cancelled',
+		'floor.title': 'Floor Plan & Layout',
+		'floor.subtitle': 'Interactive table layout and seating map.',
 
 		// Orders View
 		'orders.title': 'Orders Log',
@@ -132,9 +146,25 @@ const translations = {
 		'orders.paid': 'Paid',
 		'orders.refunded': 'Refunded',
 
+		// Guests & Staff & Reviews
+		'guests.title': 'Guests & CRM',
+		'guests.subtitle': 'Customer history, visit counts, and preferences.',
+		'staff.title': 'Staff & Rota',
+		'staff.subtitle': 'Employee management, shift schedules, and roles.',
+		'reviews.title': 'Customer Reviews',
+		'reviews.subtitle': 'Ratings, feedback, and customer satisfaction.',
+
 		// Reports View
 		'reports.title': 'Reports & Analytics',
 		'reports.subtitle': 'Sales reports, popular dishes, peak hours, and staff performance.',
+
+		// QR & Settings & Design
+		'qr.title': 'QR Table Cards',
+		'qr.subtitle': 'Generate and print QR code cards for contactless diner menus and ordering.',
+		'settings.title': 'Settings',
+		'settings.subtitle': 'Configure restaurant info, GCC currencies, brand colours, and options.',
+		'design.title': 'Design & Typography',
+		'design.subtitle': 'Customise menu layout, Arabic web fonts (Tajwal, Almarai, Cairo, etc.), and themes.',
 
 		// Wizard Onboarding
 		'wizard.welcome_title': 'Welcome to DineKit',
@@ -204,7 +234,7 @@ const translations = {
 		'nav.expand': 'توسيع القائمة',
 		'nav.collapse': 'طّي القائمة',
 
-		// Common Buttons & Labels
+		// Common UI
 		'common.save': 'حفظ',
 		'common.saving': 'جاري الحفظ…',
 		'common.saved': 'تم الحفظ',
@@ -235,6 +265,9 @@ const translations = {
 		'common.next': 'التالي',
 		'common.confirm': 'تأكيد',
 		'common.clear': 'مسح',
+		'common.yes': 'نعم',
+		'common.no': 'لا',
+		'common.remove': 'إزالة',
 
 		// Topbar & Header
 		'topbar.search_placeholder': 'ابحث في الأصناف، الطلبات، الحجوزات… (⌘K)',
@@ -257,7 +290,7 @@ const translations = {
 		'dash.upcoming_bookings': 'الحجوزات القادمة',
 		'dash.kitchen_status': 'حالة المطبخ المباشرة',
 
-		// Menu Builder
+		// Menu Builder & Item Editor
 		'builder.title': 'مُنشئ القائمة',
 		'builder.subtitle': 'إدارة الأصناف، الأقسام، الأسعار، ومسببات الحساسية.',
 		'builder.add_item': '+ إضافة صنف',
@@ -266,8 +299,15 @@ const translations = {
 		'builder.archive': 'الأصناف المؤرشفة',
 		'builder.allergens': 'مسببات الحساسية',
 		'builder.dietary': 'الشارات الغذائية',
+		'item.dish_name': 'اسم الصنف / الطبق',
+		'item.description': 'الوصف المكونات',
+		'item.badge': 'شارة مميزة (مثال: طبق اليوم / مُميز)',
+		'item.calories': 'السعرات الحرارية (كيلو كالوري)',
+		'item.available': 'متوفر للطلب',
+		'item.unavailable': 'غير متوفر حالياً (نفذت الكمية 86)',
+		'item.photo': 'صورة الطبق',
 
-		// POS View
+		// POS View & Ordering
 		'pos.title': 'نقطة البيع / تسجيل طلب',
 		'pos.subtitle': 'تسجيل الطلبات السريع لطاولات المحلي، السفري، والكاونتر.',
 		'pos.cart': 'سلة الطلب الحالي',
@@ -277,6 +317,8 @@ const translations = {
 		'pos.takeaway': 'طلب سفري / استلام',
 		'pos.table_select': 'اختر الطاولة',
 		'pos.guest_count': 'عدد الضيوف',
+		'pos.cash': 'نقداً (كاش)',
+		'pos.card': 'بطاقة (شبكة / مدى)',
 
 		// Kitchen View (KDS)
 		'kds.title': 'شاشة المطبخ (KDS)',
@@ -287,7 +329,7 @@ const translations = {
 		'kds.mark_ready': 'تحديد كـ جاهز',
 		'kds.complete': 'إكتمل الطلب',
 
-		// Bookings View
+		// Bookings & Floor Plan
 		'bookings.title': 'الحجوزات والطاولات',
 		'bookings.subtitle': 'إدارة حجوزات الطاولات، قائمة الضيوف، وتوزيع الجلسات.',
 		'bookings.new_reservation': '+ حجز جديد',
@@ -296,6 +338,8 @@ const translations = {
 		'bookings.confirmed': 'مؤكد',
 		'bookings.seated': 'تمت الجلسة',
 		'bookings.cancelled': 'ملغى',
+		'floor.title': 'مخطط الطاولات والجلسات',
+		'floor.subtitle': 'توزيع الطاولات التفاعلي وخريطة صالة المطعم.',
 
 		// Orders View
 		'orders.title': 'سجل الطلبات',
@@ -304,6 +348,14 @@ const translations = {
 		'orders.open': 'الطلبات المفتوحة',
 		'orders.paid': 'مدفوع',
 		'orders.refunded': 'مسترجع',
+
+		// Guests & Staff & Reviews
+		'guests.title': 'سجل الضيوف والعملاء',
+		'guests.subtitle': 'بيانات العملاء، عدد الزيارات، والإنفاق.',
+		'staff.title': 'إدارة الموظفين والورديات',
+		'staff.subtitle': 'جدول العمل، الأدوار، والورديات.',
+		'reviews.title': 'آراء وتقييمات العملاء',
+		'reviews.subtitle': 'التقييمات والنجوم والردود.',
 
 		// Reports View
 		'reports.title': 'التقارير والإحصائيات',
@@ -358,7 +410,6 @@ const translations = {
 	},
 };
 
-// Initial language selection (Arabic by default for localized build or saved user preference)
 const getInitialLang = () => {
 	if ( typeof window === 'undefined' ) {
 		return 'ar';
@@ -367,7 +418,6 @@ const getInitialLang = () => {
 	if ( saved === 'ar' || saved === 'en' ) {
 		return saved;
 	}
-	// Fall back to Arabic if HTML dir is rtl or site is Arabic
 	if ( typeof document !== 'undefined' && ( document.dir === 'rtl' || ( document.documentElement.lang && document.documentElement.lang.startsWith( 'ar' ) ) ) ) {
 		return 'ar';
 	}

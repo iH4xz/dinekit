@@ -25,6 +25,7 @@ import { printDoc, esc } from '../lib/print';
 import Page from './ui/Page';
 import PageHeader from './ui/PageHeader';
 import Card from './ui/Card';
+import { useI18n } from '../lib/i18n';
 
 // A dine-in tab stays open (and payable) in Take Order for ANY status except the
 // terminal ones — so a status change made on the Orders board or another tablet
