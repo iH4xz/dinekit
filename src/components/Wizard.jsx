@@ -15,8 +15,10 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ScheduleIcon from '@mui/icons-material/Schedule';
+import TranslateIcon from '@mui/icons-material/Translate';
 import { tokens } from '../theme';
 import { api } from '../api/client';
+import { useI18n } from '../lib/i18n';
 
 const DAYS = [
 	[ 'mon', 'Monday' ], [ 'tue', 'Tuesday' ], [ 'wed', 'Wednesday' ], [ 'thu', 'Thursday' ],
@@ -26,12 +28,6 @@ const DAYS = [
 // Mirrors Hours\default_week() on the server.
 const defaultWeek = () =>
 	Object.fromEntries( DAYS.map( ( [ k ] ) => [ k, [ { open: '12:00', close: '22:00' } ] ] ) );
-
-const TYPES = [
-	{ key: 'dinein', label: 'Dine-in', desc: 'Tables & bookings', icon: RestaurantIcon, fg: tokens.accent, bg: tokens.accentSoft },
-	{ key: 'takeaway', label: 'Takeaway', desc: 'Order & collect', icon: TakeoutDiningIcon, fg: tokens.violet, bg: tokens.violetSoft },
-	{ key: 'both', label: 'Both', desc: 'Dine-in + takeaway', icon: StorefrontIcon, fg: tokens.sky, bg: tokens.skySoft },
-];
 
 // Brand mark — matches the sidebar logo.
 function Mark( { size = 44 } ) {
@@ -75,10 +71,9 @@ function Dots( { count, active } ) {
 	);
 }
 
-// Opening hours, pre-filled and adjustable right here. Bookings and the ordering
-// cutoff both read these, so capturing them up front avoids a venue that looks
-// open but takes no bookings (or takes them at 3am).
+// Opening hours, pre-filled and adjustable right here.
 function HoursStep( { week, setWeek } ) {
+	const { t } = useI18n();
 	const setDay = ( key, patch ) =>
 		setWeek( ( w ) => {
 			const periods = w[ key ] || [];
@@ -89,8 +84,6 @@ function HoursStep( { week, setWeek } ) {
 			return { ...w, [ key ]: [ { ...base, ...patch } ] };
 		} );
 
-	// Copy one day's hours to every day — saves setting all seven by hand. (Split
-	// services like breakfast + dinner can be added later in Opening Hours.)
 	const copyToAll = ( key ) =>
 		setWeek( ( w ) => {
 			const src = ( w[ key ] || [] ).map( ( p ) => ( { ...p } ) );
@@ -121,7 +114,7 @@ function HoursStep( { week, setWeek } ) {
 							{ label }
 						</Typography>
 						{ closed ? (
-							<Typography sx={ { flex: 1, textAlign: 'left', fontSize: 13, color: tokens.muted2 } }>Closed</Typography>
+							<Typography sx={ { flex: 1, textAlign: 'left', fontSize: 13, color: tokens.muted2 } }>{ t( 'wizard.closed', 'Closed' ) }</Typography>
 						) : (
 							<Stack direction="row" alignItems="center" spacing={ 0.75 } sx={ { flex: 1 } }>
 								<TextField
@@ -129,7 +122,7 @@ function HoursStep( { week, setWeek } ) {
 									onChange={ ( e ) => setDay( key, { open: e.target.value } ) }
 									sx={ { width: 116 } }
 								/>
-								<Typography sx={ { color: tokens.muted2, fontSize: 13 } }>to</Typography>
+								<Typography sx={ { color: tokens.muted2, fontSize: 13 } }>-</Typography>
 								<TextField
 									type="time" size="small" value={ p.close }
 									onChange={ ( e ) => setDay( key, { close: e.target.value } ) }
@@ -143,14 +136,14 @@ function HoursStep( { week, setWeek } ) {
 							sx={ { color: tokens.muted2, minWidth: 0, px: 0.75, fontSize: 12 } }
 							title="Copy this day's hours to every day"
 						>
-							Copy to all
+							{ t( 'wizard.copy_all', 'Copy to all' ) }
 						</Button>
 						<Button
 							variant="text" size="small"
 							onClick={ () => setDay( key, closed ? { open: '12:00', close: '22:00' } : { closed: true } ) }
 							sx={ { color: tokens.muted, minWidth: 64 } }
 						>
-							{ closed ? 'Open' : 'Close' }
+							{ closed ? t( 'wizard.open', 'Open' ) : t( 'wizard.close', 'Close' ) }
 						</Button>
 					</Stack>
 				);
@@ -169,8 +162,14 @@ export default function Wizard( { onDone } ) {
 	const [ busy, setBusy ] = useState( false );
 	const [ error, setError ] = useState( '' );
 	const [ done, setDone ] = useState( null );
+	const { lang, setLang, t } = useI18n();
 
-	// Steps depend on the chosen business type (takeaway skips the tables step).
+	const typesList = [
+		{ key: 'dinein', label: t( 'wizard.dinein', 'Dine-in' ), desc: t( 'wizard.dinein_desc', 'Tables & bookings' ), icon: RestaurantIcon, fg: tokens.accent, bg: tokens.accentSoft },
+		{ key: 'takeaway', label: t( 'wizard.takeaway', 'Takeaway' ), desc: t( 'wizard.takeaway_desc', 'Order & collect' ), icon: TakeoutDiningIcon, fg: tokens.violet, bg: tokens.violetSoft },
+		{ key: 'both', label: t( 'wizard.both', 'Both' ), desc: t( 'wizard.both_desc', 'Dine-in + takeaway' ), icon: StorefrontIcon, fg: tokens.sky, bg: tokens.skySoft },
+	];
+
 	const steps = useMemo( () => {
 		const list = [ 'welcome', 'type' ];
 		if ( type !== 'takeaway' ) {
@@ -190,8 +189,6 @@ export default function Wizard( { onDone } ) {
 		'menu' === current ||
 		'hours' === current;
 
-	// `skip` bails out of the guided flow but still records the essentials, so the
-	// dashboard's setup guide picks up exactly where this left off.
 	const finish = ( skip = false ) => {
 		setBusy( true );
 		setError( '' );
@@ -222,13 +219,6 @@ export default function Wizard( { onDone } ) {
 	const back = () => setStep( ( s ) => Math.max( 0, s - 1 ) );
 
 	if ( done ) {
-		// What to do next depends on what actually exists now. With a sample menu
-		// there's a real page worth viewing; from a blank start there isn't, so we
-		// point at the builder instead of a live, empty page.
-		const nextStep = done.seeded
-			? { label: 'Build on your sample menu', hint: 'Edit the starter dishes, prices and allergens.' }
-			: { label: 'Add your first dishes', hint: 'Create a section, then add dishes with prices and allergens.' };
-
 		return (
 			<Box sx={ panelSx }>
 				<Box
@@ -248,43 +238,18 @@ export default function Wizard( { onDone } ) {
 					<CheckCircleIcon sx={ { fontSize: 34, color: tokens.green } } />
 				</Box>
 				<Typography variant="h5" sx={ { mb: 1 } }>
-					{ done.skipped ? 'Setup skipped' : 'You’re all set!' }
+					{ done.skipped ? t( 'wizard.done_skipped', 'Setup skipped' ) : t( 'wizard.done_title', 'You’re all set!' ) }
 				</Typography>
-				<Typography sx={ { color: tokens.muted, mb: 3, maxWidth: 460 } }>
-					{ done.skipped
-						? 'No problem — the setup guide on your dashboard has every step whenever you want it.'
-						: `${ done.tables ? `${ done.tables } tables, ` : '' }${ done.seeded ? 'a sample menu' : 'a blank menu' } and your opening hours are ready.` }
-				</Typography>
-
-				{ ! done.skipped && (
-					<Box sx={ { width: '100%', maxWidth: 460, textAlign: 'left', p: 2, mb: 3, borderRadius: '12px', border: `1px solid ${ tokens.border }`, bgcolor: tokens.soft } }>
-						<Typography sx={ { fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', color: tokens.muted, mb: 0.75 } }>
-							Next up
-						</Typography>
-						<Typography sx={ { fontWeight: 600, fontSize: 14.5, color: tokens.ink } }>{ nextStep.label }</Typography>
-						<Typography sx={ { fontSize: 13, color: tokens.muted } }>{ nextStep.hint }</Typography>
-						<Typography sx={ { fontSize: 12.5, color: tokens.muted2, mt: 1 } }>
-							Your dashboard tracks the rest — publishing pages, payments and taking your first booking.
-						</Typography>
-					</Box>
-				) }
 
 				<Stack direction="row" spacing={ 1.5 } justifyContent="center">
-					{ done.page && (
-						<Button variant="outlined" endIcon={ <OpenInNewIcon /> } href={ done.page } target="_blank" rel="noreferrer">
-							View my menu
-						</Button>
-					) }
 					<Button
 						variant="contained"
 						onClick={ () => {
-							// Land on the next action, not a generic dashboard. Skippers go
-							// to the dashboard, where the setup guide is waiting.
 							window.location.hash = done.skipped ? '#/home' : '#/builder';
 							window.location.reload();
 						} }
 					>
-						{ done.skipped ? 'Go to dashboard' : 'Start building' }
+						{ done.skipped ? t( 'wizard.go_dashboard', 'Go to dashboard' ) : t( 'wizard.start_building', 'Start building' ) }
 					</Button>
 				</Stack>
 			</Box>
@@ -293,6 +258,19 @@ export default function Wizard( { onDone } ) {
 
 	return (
 		<Box sx={ panelSx }>
+			{ /* Language Switcher at Top of Wizard */ }
+			<Box sx={ { width: '100%', display: 'flex', justifyContent: 'flex-end', mb: 1 } }>
+				<Button
+					size="small"
+					variant="outlined"
+					startIcon={ <TranslateIcon sx={ { fontSize: 16 } } /> }
+					onClick={ () => setLang( lang === 'ar' ? 'en' : 'ar' ) }
+					sx={ { borderRadius: 999, fontSize: 12, px: 1.5 } }
+				>
+					{ lang === 'ar' ? 'العربية' : 'English' }
+				</Button>
+			</Box>
+
 			<Dots count={ steps.length } active={ step } />
 
 			{ error && <Alert severity="error" sx={ { mb: 2, width: '100%', maxWidth: 460 } }>{ error }</Alert> }
@@ -300,13 +278,13 @@ export default function Wizard( { onDone } ) {
 			{ 'welcome' === current && (
 				<>
 					<Mark />
-					<Typography variant="h5" sx={ { mb: 1 } }>Welcome to DineKit</Typography>
+					<Typography variant="h5" sx={ { mb: 1 } }>{ t( 'wizard.welcome_title', 'Welcome to DineKit' ) }</Typography>
 					<Typography sx={ { color: tokens.muted, mb: 3, maxWidth: 460 } }>
-						Let’s set you up in a minute. What’s your place called?
+						{ t( 'wizard.welcome_desc', 'Let’s set you up in a minute. What’s your place called?' ) }
 					</Typography>
 					<TextField
-						label="Restaurant name"
-						placeholder="e.g. The Copper Kettle"
+						label={ t( 'wizard.restaurant_name', 'Restaurant name' ) }
+						placeholder={ t( 'wizard.name_placeholder', 'e.g. The Copper Kettle' ) }
 						value={ name }
 						onChange={ ( e ) => setName( e.target.value ) }
 						onKeyDown={ ( e ) => e.key === 'Enter' && name.trim() && next() }
@@ -317,18 +295,18 @@ export default function Wizard( { onDone } ) {
 
 			{ 'type' === current && (
 				<>
-					<Typography variant="h5" sx={ { mb: 1 } }>How do you serve?</Typography>
+					<Typography variant="h5" sx={ { mb: 1 } }>{ t( 'wizard.serve_title', 'How do you serve?' ) }</Typography>
 					<Typography sx={ { color: tokens.muted, mb: 3, maxWidth: 460 } }>
-						We’ll switch on the right tools — and hide the ones you don’t need.
+						{ t( 'wizard.serve_desc', 'We’ll switch on the right tools — and hide the ones you don’t need.' ) }
 					</Typography>
 					<Stack direction={ { xs: 'column', sm: 'row' } } spacing={ 1.5 } sx={ { width: '100%', maxWidth: 480 } }>
-						{ TYPES.map( ( t ) => {
-							const Icon = t.icon;
-							const on = type === t.key;
+						{ typesList.map( ( tItem ) => {
+							const Icon = tItem.icon;
+							const on = type === tItem.key;
 							return (
 								<Box
-									key={ t.key }
-									onClick={ () => setType( t.key ) }
+									key={ tItem.key }
+									onClick={ () => setType( tItem.key ) }
 									sx={ {
 										flex: 1,
 										p: 2.25,
@@ -352,13 +330,13 @@ export default function Wizard( { onDone } ) {
 											justifyContent: 'center',
 											mx: 'auto',
 											mb: 1,
-											bgcolor: t.bg,
+											bgcolor: tItem.bg,
 										} }
 									>
-										<Icon sx={ { fontSize: 24, color: t.fg } } />
+										<Icon sx={ { fontSize: 24, color: tItem.fg } } />
 									</Box>
-									<Typography sx={ { fontWeight: 650, color: on ? tokens.accentDark : tokens.ink } }>{ t.label }</Typography>
-									<Typography sx={ { fontSize: 12, color: tokens.muted } }>{ t.desc }</Typography>
+									<Typography sx={ { fontWeight: 650, color: on ? tokens.accentDark : tokens.ink } }>{ tItem.label }</Typography>
+									<Typography sx={ { fontSize: 12, color: tokens.muted } }>{ tItem.desc }</Typography>
 								</Box>
 							);
 						} ) }
@@ -369,19 +347,18 @@ export default function Wizard( { onDone } ) {
 			{ 'tables' === current && (
 				<>
 					<RestaurantIcon sx={ { fontSize: 40, color: tokens.accent, mb: 1 } } />
-					<Typography variant="h5" sx={ { mb: 1 } }>Add some tables</Typography>
+					<Typography variant="h5" sx={ { mb: 1 } }>{ t( 'wizard.tables_title', 'Add some tables' ) }</Typography>
 					<Typography sx={ { color: tokens.muted, mb: 3, maxWidth: 460 } }>
-						We’ll drop this many 2-seaters into a “Main Restaurant” zone — you can rearrange,
-						resize and join them on the floor plan later.
+						{ t( 'wizard.tables_desc', 'We’ll drop this many tables into your restaurant floor plan.' ) }
 					</Typography>
 					<TextField
 						type="number"
-						label="Number of tables"
+						label={ t( 'wizard.num_tables', 'Number of tables' ) }
 						value={ tables }
 						onChange={ ( e ) => setTables( Math.max( 0, Math.min( 50, parseInt( e.target.value, 10 ) || 0 ) ) ) }
 						inputProps={ { min: 0, max: 50 } }
 						sx={ { width: 160 } }
-						helperText="0 to skip for now"
+						helperText={ t( 'wizard.tables_helper', '0 to skip for now' ) }
 					/>
 				</>
 			) }
@@ -389,12 +366,15 @@ export default function Wizard( { onDone } ) {
 			{ 'menu' === current && (
 				<>
 					<AutoAwesomeIcon sx={ { fontSize: 40, color: tokens.accent, mb: 1 } } />
-					<Typography variant="h5" sx={ { mb: 1 } }>Your menu</Typography>
+					<Typography variant="h5" sx={ { mb: 1 } }>{ t( 'wizard.menu_title', 'Your menu' ) }</Typography>
 					<Typography sx={ { color: tokens.muted, mb: 3, maxWidth: 460 } }>
-						Start from a sample you can edit, or a clean slate.
+						{ t( 'wizard.menu_desc', 'Start from a sample you can edit, or a clean slate.' ) }
 					</Typography>
 					<Stack direction={ { xs: 'column', sm: 'row' } } spacing={ 1.5 } sx={ { width: '100%', maxWidth: 460 } }>
-						{ [ { k: true, t: 'Sample menu', d: 'Starters, mains & desserts to edit' }, { k: false, t: 'Start blank', d: 'Build from scratch' } ].map( ( o ) => {
+						{ [
+							{ k: true, t: t( 'wizard.sample_menu', 'Sample menu' ), d: t( 'wizard.sample_desc', 'Starters, mains & desserts to edit' ) },
+							{ k: false, t: t( 'wizard.blank_menu', 'Start blank' ), d: t( 'wizard.blank_desc', 'Build from scratch' ) },
+						].map( ( o ) => {
 							const on = seedSample === o.k;
 							return (
 								<Box
@@ -421,10 +401,9 @@ export default function Wizard( { onDone } ) {
 			{ 'hours' === current && (
 				<>
 					<ScheduleIcon sx={ { fontSize: 40, color: tokens.accent, mb: 1 } } />
-					<Typography variant="h5" sx={ { mb: 1 } }>When are you open?</Typography>
+					<Typography variant="h5" sx={ { mb: 1 } }>{ t( 'wizard.hours_title', 'When are you open?' ) }</Typography>
 					<Typography sx={ { color: tokens.muted, mb: 3, maxWidth: 460 } }>
-						These drive your booking times and when you stop taking orders.
-						We’ve started you at 12:00–22:00 — adjust anything that’s wrong.
+						{ t( 'wizard.hours_desc', 'These drive your booking times and when you stop taking orders.' ) }
 					</Typography>
 					<HoursStep week={ week } setWeek={ setWeek } />
 				</>
@@ -432,7 +411,7 @@ export default function Wizard( { onDone } ) {
 
 			<Stack direction="row" spacing={ 1.5 } sx={ { mt: 4 } }>
 				{ step > 0 && (
-					<Button variant="text" onClick={ back } disabled={ busy } sx={ { color: tokens.muted } }>Back</Button>
+					<Button variant="text" onClick={ back } disabled={ busy } sx={ { color: tokens.muted } }>{ t( 'wizard.back', 'Back' ) }</Button>
 				) }
 				<Button
 					variant="contained"
@@ -441,7 +420,7 @@ export default function Wizard( { onDone } ) {
 					disabled={ busy || ! canNext }
 					startIcon={ busy ? <CircularProgress size={ 18 } color="inherit" /> : null }
 				>
-					{ isLast ? ( busy ? 'Setting up…' : 'Finish' ) : 'Continue' }
+					{ isLast ? ( busy ? t( 'wizard.setting_up', 'Setting up…' ) : t( 'wizard.finish', 'Finish' ) ) : t( 'wizard.continue', 'Continue' ) }
 				</Button>
 			</Stack>
 
@@ -452,7 +431,7 @@ export default function Wizard( { onDone } ) {
 				disabled={ busy }
 				sx={ { mt: 1.5, color: tokens.muted2, fontWeight: 500 } }
 			>
-				Skip setup — I’ll do it myself
+				{ t( 'wizard.skip', 'Skip setup — I’ll do it myself' ) }
 			</Button>
 		</Box>
 	);
